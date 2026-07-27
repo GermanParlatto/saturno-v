@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Bot de WhatsApp — Kapso + AWS + LangGraph
+
+Parameters:
+  KapsoApiKey:
+    Type: String
+    NoEcho: true
+  KapsoWebhookSecret:
+    Type: String
+    NoEcho: true
+  ModelId:
+    Type: String
+    Default: eu.amazon.nova-2-lite-v1:0
+    Description: Inference profile (OJO, no el ID base del modelo)
+  LangsmithApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key de LangSmith para trazas del grafo (solo worker)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+    Tracing: Active
+    Environment:
+      Variables:
+        # Sin esto, Powertools filtra a WARNING y los logger.info NO aparecen.
+        POWERTOOLS_LOG_LEVEL: INFO
+        POWERTOOLS_SERVICE_NAME: kapso-bot
+
+Resources:
+  # ------- colas -----------------------------------------------------------
+  IncomingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      # REGLA: mayor que el Timeout del worker (si no, un mensaje reaparece
+      # mientras todavía se está procesando y se duplica el trabajo).
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IncomingDLQ.Arn
+        maxReceiveCount: 3
+
+  IncomingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600 # 14 días para inspeccionar los fallos
+
+  # ------- tablas ---------------------------------------------------------------
+  # Idempotencia: una clave por evento de Kapso.
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # clave primaria compuesta PK (HASH) + SK (RANGE), ambas String.
+  CheckpointTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  # ---- receptor ---------------------------------------------------------------
+  ReceiverFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../src
+      Handler: receiver.handler.handler
+      Timeout: 15 # el webhook debe responder en < 10 s
+      MemorySize: 256
+      Environment:
+        Variables:
+          KAPSO_WEBHOOK_SECRET: !Ref KapsoWebhookSecret
+          QUEUE_URL: !Ref IncomingQueue
+          TABLE_NAME: !Ref StateTable
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt IncomingQueue.QueueName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Events:
+        Webhook:
+          Type: HttpApi
+          Properties:
+            Path: /webhook
+            Method: post
+
+  # ---- worker ---------------------------------------------------------------
+  WorkerFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../src
+      Handler: worker.handler.handler
+      Timeout: 120 # el grafo puede tardar: < VisibilityTimeout de la cola
+      MemorySize: 1024 # LangGraph pesa; más memoria = también más CPU
+      Environment:
+        Variables:
+          KAPSO_API_KEY: !Ref KapsoApiKey
+          MODEL_ID: !Ref ModelId
+          CHECKPOINT_TABLE: !Ref CheckpointTable
+          LANGSMITH_TRACING: "true"
+          LANGSMITH_API_KEY: !Ref LangsmithApiKey
+          LANGSMITH_PROJECT: spoky-bot
+          # Tenant EU de LangSmith (no la nube pública por defecto).
+          LANGSMITH_ENDPOINT: https://eu.api.smith.langchain.com
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource:
+                - "arn:aws:bedrock:*::foundation-model/*"
+                - !Sub "arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*"
+        # Checkpoints: permisos mínimos que documenta AWS para DynamoDBSaver.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:Query
+                - dynamodb:BatchGetItem
+                - dynamodb:BatchWriteItem
+              Resource: !GetAtt CheckpointTable.Arn
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Events:
+        FromQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt IncomingQueue.Arn
+            BatchSize: 10
+            # Permite devolver batchItemFailures y reintentar sólo lo que falló.
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+            # Palanca de escalado: limita cuántos workers tiran a la vez para no
+            # saturar Bedrock ni los límites de envío de Meta.
+            ScalingConfig:
+              MaximumConcurrency: 5
+
+Outputs:
+  WebhookUrl:
+    Description: URL a registrar en el webhook de Kapso
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/webhook"
+  QueueUrl:
+    Value: !Ref IncomingQueue
+  DLQUrl:
+    Value: !Ref IncomingDLQ
