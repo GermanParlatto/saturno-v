@@ -1,0 +1,9 @@
+version = 0.1
+[default.global.parameters]
+stack_name = "kapso-whatsapp-bot"
+
+[default.deploy.parameters]
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+region = "eu-west-1"
+profile = "personal-dev"

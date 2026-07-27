@@ -1,0 +1,7 @@
+pydantic
+httpx
+langgraph
+langchain-aws
+langgraph-checkpoint-aws
+aws-lambda-powertools
+aws-xray-sdk
