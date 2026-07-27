@@ -1,0 +1,15 @@
+# CODEOWNERS
+# Repositorio con colaboradores individuales (sin equipos de organización).
+# El orden importa: la última regla que coincida con el archivo es la que aplica.
+
+# Dueño por defecto de todo el repo
+*                           @GermanParlatto
+
+# Infraestructura - solo el dueño revisa/aprueba (alto riesgo)
+/infra/                     @GermanParlatto
+
+# Configuración de seguridad y CI/CD - solo el dueño
+/.github/                   @GermanParlatto
+# Anclado con "/": un patrón suelto casaría con cualquier CODEOWNERS
+# en cualquier subdirectorio.
+/.github/CODEOWNERS         @GermanParlatto

@@ -2,7 +2,8 @@
 install:
 	uv sync
 lint:
-	ruff check src tests
+	ruff check src tools
+	ruff format --check src tools
 validate-sam:
 	sam validate --template infra/template.yaml --lint
 build:

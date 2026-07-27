@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Solo lectura: el CI nunca escribe en el repo ni asume roles de AWS.
+permissions:
+  contents: read
+
+# Si un PR recibe varios pushes seguidos, cancela las ejecuciones viejas.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  AWS_REGION: eu-west-1
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Instalar dependencias de desarrollo
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff check
+        run: ruff check src tools
+
+      - name: ruff format --check
+        run: ruff format --check src tools
+
+  sam:
+    name: Validar y construir plantilla SAM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # sam build instala desde src/requirements.txt (langgraph, langchain-aws...),
+      # que es lo que domina el tiempo de build: se cachea sobre ese fichero.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: src/requirements.txt
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      # --lint añade las reglas de cfn-lint al parseo propio de SAM.
+      - name: sam validate
+        run: sam validate --template infra/template.yaml --lint --region ${{ env.AWS_REGION }}
+
+      # Detecta errores de CodeUri/Handler o de resolución de dependencias que
+      # `validate` no ve. No despliega nada ni necesita credenciales.
+      - name: sam build
+        run: sam build --template infra/template.yaml

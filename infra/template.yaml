@@ -3,12 +3,17 @@ Transform: AWS::Serverless-2016-10-31
 Description: Bot de WhatsApp — Kapso + AWS + LangGraph
 
 Parameters:
+  # MinLength: 1 en los secretos. Sin esto, un secret vacío (p. ej. no
+  # configurado en GitHub) se desplegaría sin error y el bot rechazaría
+  # todos los webhooks con 401.
   KapsoApiKey:
     Type: String
     NoEcho: true
+    MinLength: "1"
   KapsoWebhookSecret:
     Type: String
     NoEcho: true
+    MinLength: "1"
   ModelId:
     Type: String
     Default: eu.amazon.nova-2-lite-v1:0
@@ -16,6 +21,7 @@ Parameters:
   LangsmithApiKey:
     Type: String
     NoEcho: true
+    MinLength: "1"
     Description: API key de LangSmith para trazas del grafo (solo worker)
 
 Globals:
