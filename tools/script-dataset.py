@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 generate_spoky_dataset.py — Generador de dataset sintético para el LoRA de Spoky (Waku-Code)
 
@@ -27,7 +26,7 @@ import random
 import re
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
 # 1. SYSTEM PROMPT CORTO Y CONSTANTE (el arnés completo vive fuera del dataset)
@@ -62,6 +61,7 @@ SPOKY_SYSTEM = (
 # 2. CATÁLOGO DE CONCEPTOS (Documento 05 — temario) + LORE (Documentos 02/03)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Concept:
     cid: str
@@ -73,161 +73,312 @@ class Concept:
     common_errors: list
     code: str
 
+
 CONCEPTS = [
     # ------------------------- LEVEL 0 -------------------------
-    Concept("l0_lenguaje", "L0", "Qué es un lenguaje de programación", "lenguaje de programación",
-            "el Idioma de las Estrellas: órdenes que la nave obedece al pie de la letra",
-            "la nave no interpreta intenciones como una persona",
-            ["creer que la computadora 'entiende' lo que quisiste decir"],
-            'print("Hola Spoky")'),
-    Concept("l0_algoritmo", "L0", "Qué es un algoritmo", "algoritmo",
-            "una Ruta Estelar: pasos exactos, en orden, para llegar a un planeta",
-            "hay muchas rutas válidas al mismo planeta; lo fijo es orden y precisión",
-            ["omitir pasos 'obvios'", "desordenar los pasos"],
-            "# 1. tomar pan\n# 2. untar mantequilla\n# 3. cerrar sandwich"),
-    Concept("l0_sandwich", "L0", "Proyecto post-it (Sandwich)", "instrucciones no ambiguas",
-            "el Manual de Emergencia: si un paso está mal escrito, la nave lo hace literal",
-            "las personas rellenan huecos; la nave no",
-            ["instrucciones ambiguas ('pon la mantequilla')"],
-            "# 'unta 1 cucharada de mantequilla en la cara superior del pan'"),
-    Concept("l0_sintaxis", "L0", "Sintaxis básica", "sintaxis",
-            "la gramática estelar: la nave es quisquillosa con cada símbolo",
-            "'gramática' sugiere flexibilidad humana; aquí un símbolo mal puesto rompe todo",
-            ["olvidar comillas o paréntesis", "confundir mayúsculas: edad != Edad"],
-            'print("hola")  # comillas y paréntesis obligatorios'),
-    Concept("l0_primer_print", "L0", "Primer print()", "función print",
-            "encender las luces de la nave por primera vez",
-            "print muestra, no 'imprime en papel'",
-            ["Print('hola') con mayúscula", "olvidar paréntesis"],
-            'print("Hola Spoky")'),
+    Concept(
+        "l0_lenguaje",
+        "L0",
+        "Qué es un lenguaje de programación",
+        "lenguaje de programación",
+        "el Idioma de las Estrellas: órdenes que la nave obedece al pie de la letra",
+        "la nave no interpreta intenciones como una persona",
+        ["creer que la computadora 'entiende' lo que quisiste decir"],
+        'print("Hola Spoky")',
+    ),
+    Concept(
+        "l0_algoritmo",
+        "L0",
+        "Qué es un algoritmo",
+        "algoritmo",
+        "una Ruta Estelar: pasos exactos, en orden, para llegar a un planeta",
+        "hay muchas rutas válidas al mismo planeta; lo fijo es orden y precisión",
+        ["omitir pasos 'obvios'", "desordenar los pasos"],
+        "# 1. tomar pan\n# 2. untar mantequilla\n# 3. cerrar sandwich",
+    ),
+    Concept(
+        "l0_sandwich",
+        "L0",
+        "Proyecto post-it (Sandwich)",
+        "instrucciones no ambiguas",
+        "el Manual de Emergencia: si un paso está mal escrito, la nave lo hace literal",
+        "las personas rellenan huecos; la nave no",
+        ["instrucciones ambiguas ('pon la mantequilla')"],
+        "# 'unta 1 cucharada de mantequilla en la cara superior del pan'",
+    ),
+    Concept(
+        "l0_sintaxis",
+        "L0",
+        "Sintaxis básica",
+        "sintaxis",
+        "la gramática estelar: la nave es quisquillosa con cada símbolo",
+        "'gramática' sugiere flexibilidad humana; aquí un símbolo mal puesto rompe todo",
+        ["olvidar comillas o paréntesis", "confundir mayúsculas: edad != Edad"],
+        'print("hola")  # comillas y paréntesis obligatorios',
+    ),
+    Concept(
+        "l0_primer_print",
+        "L0",
+        "Primer print()",
+        "función print",
+        "encender las luces de la nave por primera vez",
+        "print muestra, no 'imprime en papel'",
+        ["Print('hola') con mayúscula", "olvidar paréntesis"],
+        'print("Hola Spoky")',
+    ),
     # ------------------------- LEVEL 1 -------------------------
-    Concept("l1_print", "L1", "print() salida", "función print",
-            "el Altavoz de la nave: lo que la nave dice",
-            "imprimir una variable muestra su valor, no su nombre",
-            ['print("edad") vs print(edad)'],
-            'edad = 12\nprint(edad)\nprint("edad")'),
-    Concept("l1_input", "L1", "input() entrada", "función input",
-            "la Radio de la nave: escuchar al copiloto",
-            "input SIEMPRE entrega cristal de palabras (str), aunque escribas un número",
-            ["sumar input sin convertir: '5' + 3 falla"],
-            'nombre = input("¿Tu nombre, cadete? ")'),
-    Concept("l1_variables", "L1", "Variables", "variable",
-            "Contenedor de Energía con etiqueta: nombre + UN cristal (valor)",
-            "Ley del Cristal Único: NO es una caja que acumula; solo guarda un valor",
-            ["creer que guarda valores anteriores", "nombres con espacios"],
-            'energia = 100'),
-    Concept("l1_reasignacion", "L1", "Reasignación", "reasignación",
-            "meter un cristal nuevo desintegra el anterior",
-            "x = 5 y luego x = 7: el 5 ya no existe",
-            ["esperar que print(x) muestre ambos valores"],
-            "x = 5\nx = 7\nprint(x)  # 7"),
-    Concept("l1_nombrado", "L1", "Nombres de variables", "identificador",
-            "la etiqueta del contenedor: clara y sin espacios",
-            "'=' asigna; no es el igual matemático",
-            ["empezar con número", "usar espacios: mi edad = 12"],
-            "edad_cadete = 12"),
-    Concept("l1_tipos", "L1", "Tipos de datos", "tipos int, float, str",
-            "cristal entero, cristal líquido y cristal de palabras",
-            "los cristales no se mezclan sin el Traductor Universal",
-            ["'5' + 3", "creer que '5' es un número"],
-            'a = 5      # int\nb = 5.0    # float\nc = "5"    # str'),
-    Concept("l1_conversion", "L1", "Conversión de tipos", "conversión (casting)",
-            "el Traductor Universal de la nave",
-            "int('hola') hace explotar el traductor: la conversión debe tener sentido",
-            ["olvidar int() alrededor de input()"],
-            'edad = int(input("¿Edad? "))'),
-    Concept("l1_aritmeticos", "L1", "Operadores aritméticos", "operadores + - * /",
-            "el Panel de Cálculo del reactor",
-            "/ siempre da float; el orden de operaciones importa",
-            ["esperar 2+3*2 == 10", "dividir y esperar int"],
-            "energia = (2 + 3) * 2"),
-    Concept("l1_concatenacion", "L1", "Concatenación", "concatenación de strings",
-            "unir cristales de palabras",
-            "solo se unen cristales del mismo tipo: str + int falla",
-            ['"Hola " + nombre + edad sin str(edad)'],
-            'saludo = "Hola " + nombre'),
-    Concept("l1_type", "L1", "type()", "función type",
-            "el Escáner de Cristales",
-            "type dice el tipo actual, no el que 'debería' ser",
-            ["confundir el resultado de type con el valor"],
-            "print(type(edad))"),
+    Concept(
+        "l1_print",
+        "L1",
+        "print() salida",
+        "función print",
+        "el Altavoz de la nave: lo que la nave dice",
+        "imprimir una variable muestra su valor, no su nombre",
+        ['print("edad") vs print(edad)'],
+        'edad = 12\nprint(edad)\nprint("edad")',
+    ),
+    Concept(
+        "l1_input",
+        "L1",
+        "input() entrada",
+        "función input",
+        "la Radio de la nave: escuchar al copiloto",
+        "input SIEMPRE entrega cristal de palabras (str), aunque escribas un número",
+        ["sumar input sin convertir: '5' + 3 falla"],
+        'nombre = input("¿Tu nombre, cadete? ")',
+    ),
+    Concept(
+        "l1_variables",
+        "L1",
+        "Variables",
+        "variable",
+        "Contenedor de Energía con etiqueta: nombre + UN cristal (valor)",
+        "Ley del Cristal Único: NO es una caja que acumula; solo guarda un valor",
+        ["creer que guarda valores anteriores", "nombres con espacios"],
+        "energia = 100",
+    ),
+    Concept(
+        "l1_reasignacion",
+        "L1",
+        "Reasignación",
+        "reasignación",
+        "meter un cristal nuevo desintegra el anterior",
+        "x = 5 y luego x = 7: el 5 ya no existe",
+        ["esperar que print(x) muestre ambos valores"],
+        "x = 5\nx = 7\nprint(x)  # 7",
+    ),
+    Concept(
+        "l1_nombrado",
+        "L1",
+        "Nombres de variables",
+        "identificador",
+        "la etiqueta del contenedor: clara y sin espacios",
+        "'=' asigna; no es el igual matemático",
+        ["empezar con número", "usar espacios: mi edad = 12"],
+        "edad_cadete = 12",
+    ),
+    Concept(
+        "l1_tipos",
+        "L1",
+        "Tipos de datos",
+        "tipos int, float, str",
+        "cristal entero, cristal líquido y cristal de palabras",
+        "los cristales no se mezclan sin el Traductor Universal",
+        ["'5' + 3", "creer que '5' es un número"],
+        'a = 5      # int\nb = 5.0    # float\nc = "5"    # str',
+    ),
+    Concept(
+        "l1_conversion",
+        "L1",
+        "Conversión de tipos",
+        "conversión (casting)",
+        "el Traductor Universal de la nave",
+        "int('hola') hace explotar el traductor: la conversión debe tener sentido",
+        ["olvidar int() alrededor de input()"],
+        'edad = int(input("¿Edad? "))',
+    ),
+    Concept(
+        "l1_aritmeticos",
+        "L1",
+        "Operadores aritméticos",
+        "operadores + - * /",
+        "el Panel de Cálculo del reactor",
+        "/ siempre da float; el orden de operaciones importa",
+        ["esperar 2+3*2 == 10", "dividir y esperar int"],
+        "energia = (2 + 3) * 2",
+    ),
+    Concept(
+        "l1_concatenacion",
+        "L1",
+        "Concatenación",
+        "concatenación de strings",
+        "unir cristales de palabras",
+        "solo se unen cristales del mismo tipo: str + int falla",
+        ['"Hola " + nombre + edad sin str(edad)'],
+        'saludo = "Hola " + nombre',
+    ),
+    Concept(
+        "l1_type",
+        "L1",
+        "type()",
+        "función type",
+        "el Escáner de Cristales",
+        "type dice el tipo actual, no el que 'debería' ser",
+        ["confundir el resultado de type con el valor"],
+        "print(type(edad))",
+    ),
     # ------------------------- LEVEL 2 -------------------------
-    Concept("l2_booleanos", "L2", "Booleanos", "booleano (True/False)",
-            "la única respuesta de los Sensores: Verdadero o Falso",
-            "no hay 'casi verdadero': el sensor solo responde True o False",
-            ["escribir true/false en minúscula"],
-            "sensor = True"),
-    Concept("l2_comparacion", "L2", "Operadores de comparación", "operadores > < >= <= == !=",
-            "los Sensores comparan lo que ven con lo que esperan",
-            "un sensor compara, no mide: siempre devuelve True/False",
-            ["confundir > con >="],
-            "print(energia > 50)"),
-    Concept("l2_igual_vs_asig", "L2", "== vs =", "comparación vs asignación",
-            "el sensor (==) pregunta; la etiqueta (=) ordena",
-            "== compara, = asigna: el error más común del nivel",
-            ["if energia = 100:"],
-            "if energia == 100:\n    print('llena')"),
-    Concept("l2_if_else", "L2", "if / else", "condicional if/else",
-            "cruce de Ruta Estelar: SI hay asteroides esquiva, SI NO avanza",
-            "Ley de la Ruta Única: la nave toma UN solo camino",
-            ["olvidar los dos puntos", "olvidar la indentación"],
-            "if asteroides:\n    print('esquivar')\nelse:\n    print('avanzar')"),
-    Concept("l2_elif", "L2", "elif y orden", "elif",
-            "cruces encadenados: se revisan en orden y gana el primero",
-            "poner elif edad > 5 antes de elif edad > 10 'roba' los casos",
-            ["orden incorrecto de condiciones"],
-            "if edad > 10:\n    ...\nelif edad > 5:\n    ..."),
-    Concept("l2_indentacion", "L2", "Indentación", "indentación (bloques)",
-            "la zona de mando: lo indentado obedece al cruce",
-            "en Python la indentación ES sintaxis, no decoración",
-            ["mezclar espacios y sangrías", "código fuera del bloque sin querer"],
-            "if sensor:\n    print('dentro del bloque')\nprint('fuera')"),
-    Concept("l2_logicos", "L2", "and / or", "operadores lógicos",
-            "sensores combinados: asteroides Y poca energía -> refugio",
-            "and exige ambas; or con una basta; no son intercambiables",
-            ["usar or cuando se necesitan ambas condiciones"],
-            "if asteroides and energia < 20:\n    print('refugio')"),
-    Concept("l2_anidados", "L2", "Condicionales anidados", "condicional anidado",
-            "un cruce dentro de otro cruce",
-            "cada nivel de anidación es otra zona de mando (más indentación)",
-            ["perderse en la indentación de niveles"],
-            "if sensor:\n    if energia > 50:\n        print('salto')"),
+    Concept(
+        "l2_booleanos",
+        "L2",
+        "Booleanos",
+        "booleano (True/False)",
+        "la única respuesta de los Sensores: Verdadero o Falso",
+        "no hay 'casi verdadero': el sensor solo responde True o False",
+        ["escribir true/false en minúscula"],
+        "sensor = True",
+    ),
+    Concept(
+        "l2_comparacion",
+        "L2",
+        "Operadores de comparación",
+        "operadores > < >= <= == !=",
+        "los Sensores comparan lo que ven con lo que esperan",
+        "un sensor compara, no mide: siempre devuelve True/False",
+        ["confundir > con >="],
+        "print(energia > 50)",
+    ),
+    Concept(
+        "l2_igual_vs_asig",
+        "L2",
+        "== vs =",
+        "comparación vs asignación",
+        "el sensor (==) pregunta; la etiqueta (=) ordena",
+        "== compara, = asigna: el error más común del nivel",
+        ["if energia = 100:"],
+        "if energia == 100:\n    print('llena')",
+    ),
+    Concept(
+        "l2_if_else",
+        "L2",
+        "if / else",
+        "condicional if/else",
+        "cruce de Ruta Estelar: SI hay asteroides esquiva, SI NO avanza",
+        "Ley de la Ruta Única: la nave toma UN solo camino",
+        ["olvidar los dos puntos", "olvidar la indentación"],
+        "if asteroides:\n    print('esquivar')\nelse:\n    print('avanzar')",
+    ),
+    Concept(
+        "l2_elif",
+        "L2",
+        "elif y orden",
+        "elif",
+        "cruces encadenados: se revisan en orden y gana el primero",
+        "poner elif edad > 5 antes de elif edad > 10 'roba' los casos",
+        ["orden incorrecto de condiciones"],
+        "if edad > 10:\n    ...\nelif edad > 5:\n    ...",
+    ),
+    Concept(
+        "l2_indentacion",
+        "L2",
+        "Indentación",
+        "indentación (bloques)",
+        "la zona de mando: lo indentado obedece al cruce",
+        "en Python la indentación ES sintaxis, no decoración",
+        ["mezclar espacios y sangrías", "código fuera del bloque sin querer"],
+        "if sensor:\n    print('dentro del bloque')\nprint('fuera')",
+    ),
+    Concept(
+        "l2_logicos",
+        "L2",
+        "and / or",
+        "operadores lógicos",
+        "sensores combinados: asteroides Y poca energía -> refugio",
+        "and exige ambas; or con una basta; no son intercambiables",
+        ["usar or cuando se necesitan ambas condiciones"],
+        "if asteroides and energia < 20:\n    print('refugio')",
+    ),
+    Concept(
+        "l2_anidados",
+        "L2",
+        "Condicionales anidados",
+        "condicional anidado",
+        "un cruce dentro de otro cruce",
+        "cada nivel de anidación es otra zona de mando (más indentación)",
+        ["perderse en la indentación de niveles"],
+        "if sensor:\n    if energia > 50:\n        print('salto')",
+    ),
     # ------------------------- LEVEL 3 -------------------------
-    Concept("l3_while", "L3", "while", "bucle while",
-            "ignición sostenida: repite MIENTRAS la condición sea verdadera",
-            "Ley de la Condición de Salida: sin salida, motor atascado (bucle infinito)",
-            ["olvidar actualizar la variable de control"],
-            "temp = 0\nwhile temp < 100:\n    temp = temp + 10"),
-    Concept("l3_salida", "L3", "Condición de salida", "condición de salida",
-            "el freno del motor: algo debe volverla falsa",
-            "un while True sin break gira para siempre",
-            ["while contador < 5 sin contador += 1"],
-            "while intentos < 3:\n    intentos = intentos + 1"),
-    Concept("l3_contador", "L3", "Patrón contador", "contador",
-            "el marcador de igniciones del motor",
-            "contador = contador + 1 reemplaza el valor (Ley del Cristal Único)",
-            ["reiniciar el contador dentro del bucle"],
-            "intentos = 0\nwhile intentos < 3:\n    intentos = intentos + 1"),
-    Concept("l3_validacion", "L3", "Validar input con while", "validación de entrada",
-            "la Radio repite la pregunta hasta recibir señal clara",
-            "hay que volver a pedir el input DENTRO del bucle",
-            ["pedir input solo antes del while"],
-            'clave = input("Clave: ")\nwhile clave != "waku":\n    clave = input("Clave: ")'),
-    Concept("l3_for_range", "L3", "for con range", "bucle for / range",
-            "la cuenta regresiva de despegue: 10, 9, 8...",
-            "range(10, 0, -1) llega a 1, no a 0: el fin es exclusivo",
-            ["esperar que range(5) incluya el 5"],
-            "for i in range(10, 0, -1):\n    print(i)"),
-    Concept("l3_for_vs_while", "L3", "for vs while", "elección de bucle",
-            "cuenta regresiva (sabes cuántas) vs ignición sostenida (hasta que pase algo)",
-            "for no es solo para números: recorre lo que le des",
-            ["usar while con contador cuando for es más simple"],
-            "for letra in 'waku':\n    print(letra)"),
-    Concept("l3_acumulador", "L3", "Patrón acumulador", "acumulador",
-            "el tanque que suma energía en cada vuelta",
-            "el acumulador se crea ANTES del bucle, no dentro",
-            ["total = 0 dentro del bucle (se reinicia)"],
-            "total = 0\nfor i in range(1, 4):\n    total = total + i"),
+    Concept(
+        "l3_while",
+        "L3",
+        "while",
+        "bucle while",
+        "ignición sostenida: repite MIENTRAS la condición sea verdadera",
+        "Ley de la Condición de Salida: sin salida, motor atascado (bucle infinito)",
+        ["olvidar actualizar la variable de control"],
+        "temp = 0\nwhile temp < 100:\n    temp = temp + 10",
+    ),
+    Concept(
+        "l3_salida",
+        "L3",
+        "Condición de salida",
+        "condición de salida",
+        "el freno del motor: algo debe volverla falsa",
+        "un while True sin break gira para siempre",
+        ["while contador < 5 sin contador += 1"],
+        "while intentos < 3:\n    intentos = intentos + 1",
+    ),
+    Concept(
+        "l3_contador",
+        "L3",
+        "Patrón contador",
+        "contador",
+        "el marcador de igniciones del motor",
+        "contador = contador + 1 reemplaza el valor (Ley del Cristal Único)",
+        ["reiniciar el contador dentro del bucle"],
+        "intentos = 0\nwhile intentos < 3:\n    intentos = intentos + 1",
+    ),
+    Concept(
+        "l3_validacion",
+        "L3",
+        "Validar input con while",
+        "validación de entrada",
+        "la Radio repite la pregunta hasta recibir señal clara",
+        "hay que volver a pedir el input DENTRO del bucle",
+        ["pedir input solo antes del while"],
+        'clave = input("Clave: ")\nwhile clave != "waku":\n    clave = input("Clave: ")',
+    ),
+    Concept(
+        "l3_for_range",
+        "L3",
+        "for con range",
+        "bucle for / range",
+        "la cuenta regresiva de despegue: 10, 9, 8...",
+        "range(10, 0, -1) llega a 1, no a 0: el fin es exclusivo",
+        ["esperar que range(5) incluya el 5"],
+        "for i in range(10, 0, -1):\n    print(i)",
+    ),
+    Concept(
+        "l3_for_vs_while",
+        "L3",
+        "for vs while",
+        "elección de bucle",
+        "cuenta regresiva (sabes cuántas) vs ignición sostenida (hasta que pase algo)",
+        "for no es solo para números: recorre lo que le des",
+        ["usar while con contador cuando for es más simple"],
+        "for letra in 'waku':\n    print(letra)",
+    ),
+    Concept(
+        "l3_acumulador",
+        "L3",
+        "Patrón acumulador",
+        "acumulador",
+        "el tanque que suma energía en cada vuelta",
+        "el acumulador se crea ANTES del bucle, no dentro",
+        ["total = 0 dentro del bucle (se reinicia)"],
+        "total = 0\nfor i in range(1, 4):\n    total = total + i",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -236,70 +387,115 @@ CONCEPTS = [
 
 # (escenario, ejemplos_por_concepto, instrucción para el LLM generador)
 CONCEPT_SCENARIOS = [
-    ("explicacion", 2,
-     "Spoky explica el concepto POR PRIMERA VEZ: analogía del Lore + término real de "
-     "Python en el mismo mensaje + código visible + una pregunta de predicción (PRIMM)."),
-    ("reexplicacion", 2,
-     "El alumno dice que NO entendió la explicación. Spoky re-explica DE OTRA FORMA "
-     "(otro ejemplo, otro ángulo), sin repetir la misma analogía, sin frustrarse."),
-    ("acierto", 2,
-     "El alumno resuelve bien un ejercicio del concepto. Spoky celebra con elogio de "
-     "PROCESO (nombra la estrategia o la persistencia, jamás la inteligencia). Puede "
-     "usar '¡Waku Code!' y la mecánica de pieza reparada."),
-    ("error", 4,
-     "El alumno comete uno de los errores típicos del concepto (elige uno distinto en "
-     "cada variación). Spoky: +1 Medalla del Millón, señala DÓNDE y POR QUÉ falló (sin "
-     "dar la solución corregida), y cierra con una pregunta que guíe al alumno a "
-     "encontrar la corrección por sí mismo. Ofrece el Segundo Despegue. Sin la palabra "
-     "'incorrecto'."),
-    ("pista", 2,
-     "El alumno pide una pista (Radio de la Tripulación). Spoky celebra la decisión de "
-     "pedir ayuda y da una pista GRADUADA que orienta sin dar la solución."),
-    ("sobreextension", 1,
-     "El alumno lleva la analogía del Lore demasiado lejos y llega a una conclusión "
-     "FALSA sobre Python. Spoky celebra la pregunta, invoca la Ley Física de Waku-9 "
-     "correspondiente (o el punto de ruptura) y lo demuestra con código real."),
-    ("multiturno", 2,
-     "Conversación de 4-6 turnos: explicación breve -> ejercicio -> respuesta del "
-     "alumno con error -> corrección -> reintento del alumno correcto -> celebración. "
-     "Los mensajes del alumno son cortos y realistas de WhatsApp (a veces con typos)."),
+    (
+        "explicacion",
+        2,
+        "Spoky explica el concepto POR PRIMERA VEZ: analogía del Lore + término real de "
+        "Python en el mismo mensaje + código visible + una pregunta de predicción (PRIMM).",
+    ),
+    (
+        "reexplicacion",
+        2,
+        "El alumno dice que NO entendió la explicación. Spoky re-explica DE OTRA FORMA "
+        "(otro ejemplo, otro ángulo), sin repetir la misma analogía, sin frustrarse.",
+    ),
+    (
+        "acierto",
+        2,
+        "El alumno resuelve bien un ejercicio del concepto. Spoky celebra con elogio de "
+        "PROCESO (nombra la estrategia o la persistencia, jamás la inteligencia). Puede "
+        "usar '¡Waku Code!' y la mecánica de pieza reparada.",
+    ),
+    (
+        "error",
+        4,
+        "El alumno comete uno de los errores típicos del concepto (elige uno distinto en "
+        "cada variación). Spoky: +1 Medalla del Millón, señala DÓNDE y POR QUÉ falló (sin "
+        "dar la solución corregida), y cierra con una pregunta que guíe al alumno a "
+        "encontrar la corrección por sí mismo. Ofrece el Segundo Despegue. Sin la palabra "
+        "'incorrecto'.",
+    ),
+    (
+        "pista",
+        2,
+        "El alumno pide una pista (Radio de la Tripulación). Spoky celebra la decisión de "
+        "pedir ayuda y da una pista GRADUADA que orienta sin dar la solución.",
+    ),
+    (
+        "sobreextension",
+        1,
+        "El alumno lleva la analogía del Lore demasiado lejos y llega a una conclusión "
+        "FALSA sobre Python. Spoky celebra la pregunta, invoca la Ley Física de Waku-9 "
+        "correspondiente (o el punto de ruptura) y lo demuestra con código real.",
+    ),
+    (
+        "multiturno",
+        2,
+        "Conversación de 4-6 turnos: explicación breve -> ejercicio -> respuesta del "
+        "alumno con error -> corrección -> reintento del alumno correcto -> celebración. "
+        "Los mensajes del alumno son cortos y realistas de WhatsApp (a veces con typos).",
+    ),
 ]
 
 # (escenario_transversal, total_ejemplos, instrucción)
 TRANSVERSAL_SCENARIOS = [
-    ("onboarding", 15,
-     "Primer contacto: transmisión de reclutamiento, permiso de un adulto, calibración "
-     "(evaluación inicial) o Juramento del Cadete (el alumno declara su sueño). Varía "
-     "cuál de estas fases cubre cada ejemplo."),
-    ("frustracion", 25,
-     "El alumno expresa frustración, cansancio o 'no puedo' (varía la intensidad y las "
-     "palabras). Spoky baja el ritmo sin bajar la calidez, comparte su propia historia "
-     "de fallos y propone un paso pequeño. Nunca presiona."),
-    ("recordatorio", 15,
-     "Mensaje proactivo de Spoky tras ausencia del alumno o para la constancia diaria. "
-     "Tono de reencuentro, cero culpa, progreso a salvo (Reactor de Constancia en "
-     "hibernación). El 'user' aquí es una instrucción del sistema tipo "
-     "'[EVENTO: alumno inactivo 3 días]'."),
-    ("fuera_tema", 25,
-     "El alumno pregunta algo fuera del curso (videojuegos, tareas de otras materias, "
-     "chismes, pedir que haga su tarea completa). Spoky redirige con humor a la misión "
-     "sin regañar. Varía mucho los temas fuera de alcance."),
-    ("progreso", 10,
-     "El alumno pide su progreso (#progreso). Spoky abre la Bitácora de Vuelo: piezas "
-     "reparadas, fallos con orgullo, rango actual, ruta restante. Inventa números "
-     "coherentes y variados."),
-    ("fin_tema", 12,
-     "El alumno completa un sistema/nivel. Spoky celebra en grande, resume lo aprendido "
-     "nombrando el proceso, otorga el nuevo rango y anticipa la siguiente misión."),
-    ("seguridad", 15,
-     "El alumno menciona algo delicado (se siente muy triste, problemas en casa, "
-     "bullying, no quiere seguir con nada). Spoky responde con calidez, SIN dar "
-     "consejería, valida la emoción y lo anima a hablar con un adulto de confianza de "
-     "su base terrestre. Mantiene la puerta abierta sin presionar."),
-    ("ocr_ilegible", 10,
-     "El alumno envió una foto de su ejercicio pero no se pudo leer bien. Spoky lo "
-     "dice sin culpar, pide otra foto con más luz/enfoque y celebra el esfuerzo de "
-     "hacerlo a mano."),
+    (
+        "onboarding",
+        15,
+        "Primer contacto: transmisión de reclutamiento, permiso de un adulto, calibración "
+        "(evaluación inicial) o Juramento del Cadete (el alumno declara su sueño). Varía "
+        "cuál de estas fases cubre cada ejemplo.",
+    ),
+    (
+        "frustracion",
+        25,
+        "El alumno expresa frustración, cansancio o 'no puedo' (varía la intensidad y las "
+        "palabras). Spoky baja el ritmo sin bajar la calidez, comparte su propia historia "
+        "de fallos y propone un paso pequeño. Nunca presiona.",
+    ),
+    (
+        "recordatorio",
+        15,
+        "Mensaje proactivo de Spoky tras ausencia del alumno o para la constancia diaria. "
+        "Tono de reencuentro, cero culpa, progreso a salvo (Reactor de Constancia en "
+        "hibernación). El 'user' aquí es una instrucción del sistema tipo "
+        "'[EVENTO: alumno inactivo 3 días]'.",
+    ),
+    (
+        "fuera_tema",
+        25,
+        "El alumno pregunta algo fuera del curso (videojuegos, tareas de otras materias, "
+        "chismes, pedir que haga su tarea completa). Spoky redirige con humor a la misión "
+        "sin regañar. Varía mucho los temas fuera de alcance.",
+    ),
+    (
+        "progreso",
+        10,
+        "El alumno pide su progreso (#progreso). Spoky abre la Bitácora de Vuelo: piezas "
+        "reparadas, fallos con orgullo, rango actual, ruta restante. Inventa números "
+        "coherentes y variados.",
+    ),
+    (
+        "fin_tema",
+        12,
+        "El alumno completa un sistema/nivel. Spoky celebra en grande, resume lo aprendido "
+        "nombrando el proceso, otorga el nuevo rango y anticipa la siguiente misión.",
+    ),
+    (
+        "seguridad",
+        15,
+        "El alumno menciona algo delicado (se siente muy triste, problemas en casa, "
+        "bullying, no quiere seguir con nada). Spoky responde con calidez, SIN dar "
+        "consejería, valida la emoción y lo anima a hablar con un adulto de confianza de "
+        "su base terrestre. Mantiene la puerta abierta sin presionar.",
+    ),
+    (
+        "ocr_ilegible",
+        10,
+        "El alumno envió una foto de su ejercicio pero no se pudo leer bien. Spoky lo "
+        "dice sin culpar, pide otra foto con más luz/enfoque y celebra el esfuerzo de "
+        "hacerlo a mano.",
+    ),
 ]
 
 STUDENT_PERSONAS = [
@@ -465,8 +661,11 @@ def build_prompt(scenario_key, scenario_desc, concept, persona, seed):
             f"- Código de referencia:\n{concept.code}\n"
         )
     return META_PROMPT.format(
-        system=SPOKY_SYSTEM, scenario_desc=scenario_desc,
-        concept_block=concept_block, persona=persona, seed=seed,
+        system=SPOKY_SYSTEM,
+        scenario_desc=scenario_desc,
+        concept_block=concept_block,
+        persona=persona,
+        seed=seed,
     )
 
 
@@ -481,17 +680,26 @@ def call_llm(client, prompt, max_retries=4):
             )
             return "".join(b.text for b in resp.content if b.type == "text")
         except Exception as e:  # rate limit / red
-            wait = 2 ** attempt
-            print(f"  [retry {attempt+1}] {e} — esperando {wait}s", file=sys.stderr)
+            wait = 2**attempt
+            print(f"  [retry {attempt + 1}] {e} — esperando {wait}s", file=sys.stderr)
             time.sleep(wait)
     return None
+
 
 # ---------------------------------------------------------------------------
 # 5. VALIDACIÓN
 # ---------------------------------------------------------------------------
 
-FORBIDDEN = [r"eres un genio", r"qué inteligente", r"que inteligente", r"esto es fácil",
-             r"esto es facil", r"incorrecto\b", r"nakama", r"waku waku"]
+FORBIDDEN = [
+    r"eres un genio",
+    r"qué inteligente",
+    r"que inteligente",
+    r"esto es fácil",
+    r"esto es facil",
+    r"incorrecto\b",
+    r"nakama",
+    r"waku waku",
+]
 
 
 SOCRATIC_SCENARIOS = {"error", "pista", "reexplicacion"}
@@ -522,23 +730,29 @@ def validate_example(obj, scenario_key):
                 return f"demasiadas burbujas ({len(bubbles)} > {MAX_BUBBLES})"
             for bi, bubble in enumerate(bubbles):
                 if len(bubble) > MAX_BUBBLE_CHARS:
-                    return (f"burbuja {bi+1} demasiado larga "
-                            f"({len(bubble)} > {MAX_BUBBLE_CHARS} chars)")
+                    return (
+                        f"burbuja {bi + 1} demasiado larga "
+                        f"({len(bubble)} > {MAX_BUBBLE_CHARS} chars)"
+                    )
             # --- Frases prohibidas ---
             for pat in FORBIDDEN:
                 if re.search(pat, text_lower):
                     return f"frase prohibida: {pat}"
             # --- Waku Code solo en celebraciones ---
-            if scenario_key not in ("acierto", "fin_tema", "multiturno") \
-                    and "waku code" in text_lower:
+            if (
+                scenario_key not in ("acierto", "fin_tema", "multiturno")
+                and "waku code" in text_lower
+            ):
                 return "waku code fuera de celebración"
             # --- Heurística socrática: último mensaje de Spoky termina en pregunta ---
-            is_last_assistant = (idx == len(msgs) - 1)
+            is_last_assistant = idx == len(msgs) - 1
             if is_last_assistant and scenario_key in SOCRATIC_SCENARIOS:
                 stripped = text.rstrip()
                 if not stripped.endswith("?") and not stripped.endswith("?»"):
-                    return (f"escenario socrático ({scenario_key}): el último mensaje "
-                            f"de Spoky debe terminar con una pregunta (?)")
+                    return (
+                        f"escenario socrático ({scenario_key}): el último mensaje "
+                        f"de Spoky debe terminar con una pregunta (?)"
+                    )
     return None
 
 
@@ -550,19 +764,21 @@ def extract_json(raw):
     if start == -1 or end == -1:
         return None
     try:
-        return json.loads(raw[start:end + 1])
+        return json.loads(raw[start : end + 1])
     except json.JSONDecodeError:
         return None
+
 
 # ---------------------------------------------------------------------------
 # 6. PLAN DE LA MATRIZ Y SPLIT
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Task:
     scenario: str
     scenario_desc: str
-    concept: object          # Concept | None
+    concept: object  # Concept | None
     persona: str
     seed: int
 
@@ -593,9 +809,11 @@ def assign_split(task):
     bucket = int(h[:8], 16) % 10
     return "train" if bucket < 8 else ("val" if bucket == 8 else "test")
 
+
 # ---------------------------------------------------------------------------
 # 7. MAIN
 # ---------------------------------------------------------------------------
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -628,8 +846,10 @@ def main():
     rejected_path = os.path.join(args.out, f"rejected_{args.phase}.jsonl")
     ok, bad = 0, 0
 
-    with open(master_path, "w", encoding="utf-8") as fm, \
-         open(rejected_path, "w", encoding="utf-8") as fr:
+    with (
+        open(master_path, "w", encoding="utf-8") as fm,
+        open(rejected_path, "w", encoding="utf-8") as fr,
+    ):
         for i, t in enumerate(tasks, 1):
             prompt = build_prompt(t.scenario, t.scenario_desc, t.concept, t.persona, t.seed)
             raw = call_llm(client, prompt)
@@ -644,13 +864,16 @@ def main():
                 "split": assign_split(t),
             }
             if err is None:
-                record = {"messages": [{"role": "system", "content": SPOKY_SYSTEM}]
-                          + obj["messages"], "meta": meta}
+                record = {
+                    "messages": [{"role": "system", "content": SPOKY_SYSTEM}] + obj["messages"],
+                    "meta": meta,
+                }
                 fm.write(json.dumps(record, ensure_ascii=False) + "\n")
                 ok += 1
             else:
-                fr.write(json.dumps({"meta": meta, "error": err, "raw": raw},
-                                    ensure_ascii=False) + "\n")
+                fr.write(
+                    json.dumps({"meta": meta, "error": err, "raw": raw}, ensure_ascii=False) + "\n"
+                )
                 bad += 1
             if i % 10 == 0:
                 print(f"  {i}/{len(tasks)}  ok={ok} rechazados={bad}")
@@ -658,14 +881,15 @@ def main():
 
     # Split limpio para el trainer
     counts = {"train": 0, "val": 0, "test": 0}
-    files = {s: open(os.path.join(args.out, f"{s}_{args.phase}.jsonl"), "w",
-                     encoding="utf-8") for s in counts}
+    files = {
+        s: open(os.path.join(args.out, f"{s}_{args.phase}.jsonl"), "w", encoding="utf-8")
+        for s in counts
+    }
     with open(master_path, encoding="utf-8") as fm:
         for line in fm:
             rec = json.loads(line)
             s = rec["meta"]["split"]
-            files[s].write(json.dumps({"messages": rec["messages"]},
-                                      ensure_ascii=False) + "\n")
+            files[s].write(json.dumps({"messages": rec["messages"]}, ensure_ascii=False) + "\n")
             counts[s] += 1
     for f in files.values():
         f.close()

@@ -3,8 +3,10 @@
 IMPORTANTE: calcular el HMAC sobre el CUERPO CRUDO (bytes tal cual llegaron),
 nunca sobre un JSON re-serializado (el orden de claves cambiaria la firma).
 """
-import hmac
+
 import hashlib
+import hmac
+
 
 def verify_signature(raw: bytes, signature: str, secret: str) -> bool:
     """Verifica si el cuercpo es firmado correctamante con webhook de kapso"""

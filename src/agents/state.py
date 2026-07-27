@@ -13,4 +13,3 @@ class AgentState(TypedDict):
     """Estado compartido por todos los nodos del grafo."""
 
     messages: Annotated[list, add_messages]
-
