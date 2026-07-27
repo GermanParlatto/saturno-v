@@ -3,8 +3,6 @@ install:
 	uv sync
 lint:
 	ruff check src tests
-test:
-	pytest -q
 validate-sam:
 	sam validate --template infra/template.yaml --lint
 build:

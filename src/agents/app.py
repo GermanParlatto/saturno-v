@@ -1,6 +1,4 @@
-"""Entrypoint del grafo: la única función que el worker necesita conocer.
-
-"""
+"""Entrypoint del grafo: la única función que el worker necesita conocer."""
 
 from agents.graph import build_graph
 
@@ -18,7 +16,7 @@ def run_graph(user_message: str, thread_id: str) -> str:
             idempotencia. El checkpointer lo emplea como clave de partición.
     """
     config = {"configurable": {"thread_id": thread_id}}
-    
+
     result = GRAPH.invoke({"messages": [("user", user_message)]}, config)
 
     # El último mensaje del historial es la respuesta del modelo.
