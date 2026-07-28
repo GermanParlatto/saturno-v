@@ -15,6 +15,7 @@ from agents.app import run_graph
 from shared.kapso_client import send_text
 from shared.models import WebhookIn
 from shared.observability import logger, tracer
+from shared.whatsapp_format import format_for_whatsapp
 
 if TYPE_CHECKING:
     from aws_lambda_typing.context import Context
@@ -37,7 +38,7 @@ def handler(event: "SQSEvent", context: "Context") -> dict[str, Any]:
             logger.info("Procesando mensaje", extra={"texto": texto})
 
             # thread_id = número de teléfono: la clave natural de la conversación.
-            reply = run_graph(texto, thread_id=numero)
+            reply = format_for_whatsapp(run_graph(texto, thread_id=numero))
 
             send_text(phone_number_id, to=numero, body=reply)
 
