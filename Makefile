@@ -1,6 +1,7 @@
 .PHONY: install lint validate-sam build deploy
 install:
 	uv sync
+	uv pip install -r requirements-dev.txt
 lint:
 	ruff check src tools
 	ruff format --check src tools
