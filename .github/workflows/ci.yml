@@ -35,10 +35,29 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: ruff check
-        run: ruff check src tools
+        run: ruff check src tools tests
 
       - name: ruff format --check
-        run: ruff format --check src tools
+        run: ruff format --check src tools tests
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      # whatsapp_format.py no importa langchain ni boto3: bastan las dev deps.
+      - name: Instalar dependencias de desarrollo
+        run: pip install -r requirements-dev.txt
+
+      - name: pytest
+        run: pytest -q
 
   sam:
     name: Validar y construir plantilla SAM

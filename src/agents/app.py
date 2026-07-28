@@ -19,5 +19,6 @@ def run_graph(user_message: str, thread_id: str) -> str:
 
     result = GRAPH.invoke({"messages": [("user", user_message)]}, config)
 
-    # El último mensaje del historial es la respuesta del modelo.
-    return result["messages"][-1].content
+    # `.text` (de BaseMessage) aplana el .content a str: con ChatBedrockConverse
+    # puede venir como str o como lista de bloques de contenido.
+    return result["messages"][-1].text

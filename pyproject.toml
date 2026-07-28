@@ -44,3 +44,7 @@ ignore = ["E203"]
 # Script one-off de generación de dataset: prints, open() sin context manager
 # y bucles largos son aceptables aquí.
 "tools/*" = ["SIM115", "E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

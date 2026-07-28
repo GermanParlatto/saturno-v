@@ -18,7 +18,11 @@ from agents.state import AgentState
 SYSTEM_PROMPT = (
     "Eres un asistente que atiende por WhatsApp. "
     "Responde en español, breve y claro (2-3 frases como máximo). "
-    "No uses markdown ni listas: WhatsApp no las renderiza bien."
+    "No uses markdown para dar formato al texto: nada de encabezados, "
+    "tablas ni enlaces con corchetes. "
+    "SÍ debes usar comillas invertidas para el código: `codigo` para fragmentos "
+    "dentro de una frase y un bloque con tres comillas invertidas para código de "
+    "varias líneas, indicando el lenguaje en la primera línea."
 )
 
 # A nivel de módulo: se crea una vez por contenedor, no en cada invocación.

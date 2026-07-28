@@ -15,6 +15,7 @@ from agents.app import run_graph
 from shared.kapso_client import send_text
 from shared.models import WebhookIn
 from shared.observability import logger, tracer
+from shared.whatsapp_format import format_for_whatsapp
 
 if TYPE_CHECKING:
     from aws_lambda_typing.context import Context
@@ -37,7 +38,13 @@ def handler(event: "SQSEvent", context: "Context") -> dict[str, Any]:
             logger.info("Procesando mensaje", extra={"texto": texto})
 
             # thread_id = número de teléfono: la clave natural de la conversación.
-            reply = run_graph(texto, thread_id=numero)
+            reply = format_for_whatsapp(run_graph(texto, thread_id=numero))
+
+            if not reply.strip():
+                # Respuesta vacía (p.ej. el modelo devolvió content=""): no hay nada
+                # útil que enviar. Se trata como fallo del mensaje en vez de mandar
+                # un WhatsApp vacío al usuario.
+                raise ValueError("El grafo devolvió una respuesta vacía")
 
             send_text(phone_number_id, to=numero, body=reply)
 
