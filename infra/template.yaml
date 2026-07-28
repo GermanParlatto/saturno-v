@@ -89,6 +89,46 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # ---- motor de curso (F0: creadas vacías; el worker las usa desde F3) ----
+  # Definición del curso: estática (~70 nodos), se cachea en RAM por contenedor.
+  # PK/SK: NODE#<id>/META  y  FLOW#<curso>/ORD#<n>.  Sin TTL (no caduca).
+  CourseCatalogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  # Estado por alumno: PK = USER#<tel>, SK = STATE.  SIN TTL a propósito: el progreso
+  # debe durar meses (el TTL de 7 días de agents/memory.py lo borraría al día 8).
+  # SSE on: guarda datos de contacto de tutores de menores.
+  CourseStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
   # ---- receptor ---------------------------------------------------------------
   ReceiverFn:
     Type: AWS::Serverless::Function
@@ -133,6 +173,10 @@ Resources:
           LANGSMITH_PROJECT: spoky-bot
           # Tenant EU de LangSmith (no la nube pública por defecto).
           LANGSMITH_ENDPOINT: https://eu.api.smith.langchain.com
+          # ---- motor de curso (F0: tablas cableadas; wiring del worker en F3) ----
+          CATALOG_TABLE: !Ref CourseCatalogTable
+          COURSE_STATE_TABLE: !Ref CourseStateTable
+          COURSE_ID: "waku-l0"
       Policies:
         - Statement:
             - Effect: Allow
@@ -150,6 +194,23 @@ Resources:
                 - dynamodb:BatchGetItem
                 - dynamodb:BatchWriteItem
               Resource: !GetAtt CheckpointTable.Arn
+        # Catálogo del curso: solo lectura (el worker nunca lo escribe).
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:BatchGetItem
+              Resource: !GetAtt CourseCatalogTable.Arn
+        # Estado del alumno: lectura y escritura condicional (avance de posición).
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+              Resource: !GetAtt CourseStateTable.Arn
         - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
       Events:
         FromQueue:

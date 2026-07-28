@@ -1,0 +1,124 @@
+name: seed
+
+# Siembra el catálogo del curso (CourseCatalogTable) tras un deploy exitoso.
+#
+# Guardado e idempotente: si la tabla ya tiene ítems NO hace nada. Solo se siembra
+# CourseCatalogTable; CourseStateTable es estado por alumno y nunca se siembra.
+#
+# El rol OIDC (AWS_DEPLOY_ROLE_ARN) necesita, además de lo que ya usa el deploy:
+#   - cloudformation:DescribeStackResource   (resolver el nombre físico de la tabla)
+#   - dynamodb:Scan                          (comprobar si ya está poblada)
+#   - dynamodb:BatchWriteItem                (escribir el catálogo)
+# sobre CourseCatalogTable. Si el rol de deploy no los incluye, este workflow fallará
+# con AccessDenied y habrá que ampliar su policy en la cuenta AWS.
+
+on:
+  # workflow_run solo se dispara con el workflow definido en la rama por defecto.
+  workflow_run:
+    workflows: [deploy]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC: nada de claves AWS de larga duración
+  contents: read
+
+# Dos seeds simultáneos podrían pisarse; no cancelar uno a medias.
+concurrency:
+  group: seed-production
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  AWS_REGION: eu-west-1
+  STACK_NAME: kapso-whatsapp-bot
+  COURSE_ID: waku-l0
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    # Solo main. Igual que el deploy: workflow_dispatch tampoco exime de la rama.
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    # Aporta el rol de despliegue y los required reviewers.
+    environment: production
+    steps:
+      # workflow_run checkea la rama por defecto, NO el commit que desplegó:
+      # sin fijar el SHA se sembraría con otra versión del seeder/CSV.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Un secret inexistente se expande a "" y el assume-role fallaría de forma
+      # opaca; se comprueba antes.
+      - name: Verificar que el secret del rol existe
+        run: |
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
+            echo "::error::Falta el secret AWS_DEPLOY_ROLE_ARN en el entorno 'production'"
+            exit 1
+          fi
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # El grupo dev incluye boto3, que usa el seeder.
+      - name: Instalar dependencias desde el lock
+        run: uv sync --locked --group dev
+
+      - name: Credenciales AWS vía OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-seed-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # El nombre físico de la tabla lo genera CloudFormation; se resuelve del stack.
+      - name: Resolver nombre físico de CourseCatalogTable
+        id: table
+        run: |
+          NAME=$(aws cloudformation describe-stack-resource \
+            --stack-name "$STACK_NAME" \
+            --logical-resource-id CourseCatalogTable \
+            --region "$AWS_REGION" \
+            --query 'StackResourceDetail.PhysicalResourceId' --output text)
+          if [ -z "$NAME" ] || [ "$NAME" = "None" ]; then
+            echo "::error::No se pudo resolver CourseCatalogTable en el stack $STACK_NAME"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "CourseCatalogTable = $NAME"
+
+      # Guarda de idempotencia: ~140 ítems caben en una página de scan, así que
+      # Count es exacto. Si ya hay datos, no se reescribe.
+      - name: ¿Ya está sembrada?
+        id: check
+        run: |
+          COUNT=$(aws dynamodb scan \
+            --table-name "${{ steps.table.outputs.name }}" \
+            --select COUNT --region "$AWS_REGION" \
+            --query 'Count' --output text)
+          echo "Ítems actuales en la tabla: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "seeded=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Catálogo ya poblado ($COUNT ítems); se omite el seed."
+          else
+            echo "seeded=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sembrar catálogo
+        if: steps.check.outputs.seeded == 'false'
+        run: |
+          uv run python tools/seed-course.py \
+            --table "${{ steps.table.outputs.name }}" \
+            --course "$COURSE_ID"
