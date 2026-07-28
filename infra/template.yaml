@@ -23,6 +23,15 @@ Parameters:
     NoEcho: true
     MinLength: 1
     Description: API key de LangSmith para trazas del grafo (solo worker)
+  SpokyEndpointUrl:
+    Type: String
+    MinLength: 1
+    Description: URL completa del endpoint de Spoky (incluye /v1/chat/completions)
+  SpokyApiToken:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Token de Hugging Face para el endpoint de Spoky
 
 Globals:
   Function:
@@ -34,6 +43,7 @@ Globals:
         # Sin esto, Powertools filtra a WARNING y los logger.info NO aparecen.
         POWERTOOLS_LOG_LEVEL: INFO
         POWERTOOLS_SERVICE_NAME: kapso-bot
+        POWERTOOLS_METRICS_NAMESPACE: kapso-bot
 
 Resources:
   # ------- colas -----------------------------------------------------------
@@ -133,6 +143,9 @@ Resources:
           LANGSMITH_PROJECT: spoky-bot
           # Tenant EU de LangSmith (no la nube pública por defecto).
           LANGSMITH_ENDPOINT: https://eu.api.smith.langchain.com
+          SPOKY_ENDPOINT_URL: !Ref SpokyEndpointUrl
+          SPOKY_API_TOKEN: !Ref SpokyApiToken
+          SPOKY_TIMEOUT_SECONDS: "25"
       Policies:
         - Statement:
             - Effect: Allow
@@ -156,7 +169,13 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt IncomingQueue.Arn
-            BatchSize: 10
+            # 3, no 10: el handler procesa el lote en SERIE, y ahora cada
+            # mensaje puede sumar una llamada al endpoint de Spoky (que puede
+            # arrancar en frío, 30-60s). Con BatchSize=10 un lote entero contra
+            # un endpoint frío agotaría el Timeout de 120s del worker y volvería
+            # a la cola completo. Con MaximumConcurrency=5 no se pierde
+            # rendimiento real: salen más invocaciones, más pequeñas.
+            BatchSize: 3
             # Permite devolver batchItemFailures y reintentar sólo lo que falló.
             FunctionResponseTypes:
               - ReportBatchItemFailures
