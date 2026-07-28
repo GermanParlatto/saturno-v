@@ -21,7 +21,7 @@ Parameters:
   LangsmithApiKey:
     Type: String
     NoEcho: true
-    MinLength: "1"
+    MinLength: 1
     Description: API key de LangSmith para trazas del grafo (solo worker)
 
 Globals:
