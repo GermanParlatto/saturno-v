@@ -3,16 +3,14 @@ from shared.whatsapp_format import format_for_whatsapp
 
 def test_fence_preserves_newlines_and_indentation():
     text = "Mira:\n```python\ndef f(x):\n    if x:\n        return 1\n```\nListo."
-    expected = "Mira:\n`\ndef f(x):\n    if x:\n        return 1\n`\nListo."
+    expected = "Mira:\n```\ndef f(x):\n    if x:\n        return 1\n```\nListo."
     assert format_for_whatsapp(text) == expected
 
 
 def test_fence_strips_language_tag_variants():
-    # WhatsApp no renderiza ``` como bloque de código (queda como texto literal);
-    # el fence se baja a backtick simple, el único monoespaciado que entiende.
-    assert format_for_whatsapp("```javascript\ncode\n```") == "`\ncode\n`"
-    assert format_for_whatsapp("```py\ncode\n```") == "`\ncode\n`"
-    assert format_for_whatsapp("```\ncode\n```") == "`\ncode\n`"
+    assert format_for_whatsapp("```javascript\ncode\n```") == "```\ncode\n```"
+    assert format_for_whatsapp("```py\ncode\n```") == "```\ncode\n```"
+    assert format_for_whatsapp("```\ncode\n```") == "```\ncode\n```"
 
 
 def test_fence_one_liner_untouched():
@@ -22,7 +20,7 @@ def test_fence_one_liner_untouched():
 
 def test_fence_with_nested_triple_backtick_not_split():
     text = "```py\nprint('```')\n```"
-    expected = "`\nprint('```')\n`"
+    expected = "```\nprint('```')\n```"
     assert format_for_whatsapp(text) == expected
 
 
@@ -30,7 +28,7 @@ def test_fence_opened_mid_line_after_prose_is_protected():
     # La apertura ``` no tiene por qué estar al inicio de línea: es un patrón real
     # de salida del LLM ("Aquí tienes: ```python\n...").
     text = "Aquí tienes: ```python\nclass Foo:\n    def __init__(self):\n        pass\n```"
-    expected = "Aquí tienes: `\nclass Foo:\n    def __init__(self):\n        pass\n`"
+    expected = "Aquí tienes: ```\nclass Foo:\n    def __init__(self):\n        pass\n```"
     assert format_for_whatsapp(text) == expected
 
 
@@ -38,14 +36,13 @@ def test_unclosed_fence_does_not_swallow_a_later_real_fence():
     text = "Abre ```\ny sigue\nmas\n```js\nreal code\n```"
     result = format_for_whatsapp(text)
     # El ``` suelto queda como prosa literal; el bloque real más adelante se protege
-    # y se baja a backtick simple como cualquier otro fence bien formado.
-    assert result == "Abre ```\ny sigue\nmas\n`\nreal code\n`"
+    # y pierde su tag de lenguaje como cualquier otro fence bien formado.
+    assert result == "Abre ```\ny sigue\nmas\n```\nreal code\n```"
 
 
 def test_fence_special_chars_not_transformed():
     text = "```\n*bold* _it_ **b** # h - item\n```"
-    expected = "`\n*bold* _it_ **b** # h - item\n`"
-    assert format_for_whatsapp(text) == expected
+    assert format_for_whatsapp(text) == text
 
 
 def test_inline_mid_sentence():
@@ -95,7 +92,7 @@ def test_bold_lookaround_does_not_match_math():
 
 
 def test_bold_markers_inside_fence_or_inline_not_converted():
-    assert format_for_whatsapp("```\n**x**\n```") == "`\n**x**\n`"
+    assert format_for_whatsapp("```\n**x**\n```") == "```\n**x**\n```"
     assert format_for_whatsapp("`**x**`") == "`**x**`"
 
 

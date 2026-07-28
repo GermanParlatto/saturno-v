@@ -1,11 +1,9 @@
 """Formatea texto Markdown-ish del LLM al formato de chat que WhatsApp renderiza.
 
-WhatsApp NO soporta bloques de código ```triple``` (los muestra como texto literal,
-backticks incluidos): el único monoespaciado que entiende es `backtick simple`, y para
-negrita usa `*negrita*` en vez de `**negrita**`. El trabajo real es: (a) bajar los
-bloques ```triple``` (con o sin tag de lenguaje) a `backtick simple`, (b) adaptar la
-negrita fuera de código, (c) envolver en backticks el código suelto que el modelo no
-delimitó.
+WhatsApp usa la MISMA sintaxis de comillas invertidas que Markdown para monoespaciado
+(`inline` y ```bloque```), pero `**negrita**` en vez de eso usa `*negrita*`. El trabajo
+real es: (a) quitar el tag de lenguaje de los bloques de código, (b) adaptar la negrita
+fuera de código, (c) envolver en backticks el código suelto que el modelo no delimitó.
 
 Arquitectura: segmentar -> transformar -> reensamblar. Nunca se aplica una regex sobre
 el texto completo: primero se separan los tramos ya delimitados (bloques, inline, URLs),
@@ -41,7 +39,6 @@ _PROTECTED = re.compile(
 )
 
 _FENCE_LANG = re.compile(r"\A```[^\n`]*(?=\n)")
-_FENCE_CLOSE = re.compile(r"\n[ \t]*```[ \t]*\Z")
 
 _BOLD_MD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
 # Exige un espacio dentro del contenido: una frase de negrita casi siempre tiene más
@@ -82,18 +79,11 @@ def _enable_code_heuristic() -> bool:
     return os.environ.get("WHATSAPP_CODE_HEURISTIC", "1") != "0"
 
 
-def _downgrade_fence(fence: str) -> str:
+def _strip_fence_lang(fence: str) -> str:
     if fence.startswith("```") and fence.endswith("```") and "\n" not in fence:
         # Fence de una línea, p.ej. ```py```: sin cuerpo, no lleva tag de lenguaje.
         return fence
-    # WhatsApp no tiene noción de bloque de código: no renderiza ``` como
-    # delimitador (con o sin tag de lenguaje), sobrevive tal cual, visible como
-    # texto literal. El único monoespaciado que WhatsApp entiende es el backtick
-    # simple, así que el fence completo se baja a una sola comilla en apertura y
-    # cierre en vez de solo pelarle el tag de lenguaje.
-    body = _FENCE_LANG.sub("", fence, count=1)
-    body = _FENCE_CLOSE.sub("\n", body)
-    return f"`{body}`"
+    return _FENCE_LANG.sub("```", fence, count=1)
 
 
 def _wrap_code_heuristic(text: str) -> str:
@@ -146,7 +136,7 @@ def format_for_whatsapp(text: str) -> str:
             if m.start() > pos:
                 parts.append(_format_prose(text[pos : m.start()]))
             if m.lastgroup == "fence":
-                parts.append(_downgrade_fence(m.group()))
+                parts.append(_strip_fence_lang(m.group()))
             else:
                 parts.append(m.group())
             pos = m.end()
