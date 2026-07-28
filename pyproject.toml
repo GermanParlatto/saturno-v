@@ -4,20 +4,30 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
+# Lo que se empaqueta en Lambda: src/requirements.txt sale de aquí vía
+# `make lock-requirements`, así que todo lo que se añada engorda el bundle.
 dependencies = [
     "aws-lambda-powertools>=3.7.0",
     "aws-xray-sdk>=2.14.0",
-    "boto3>=1.43.53",
-    "fastapi[standard]>=0.139.2",
+    "httpx>=0.28.0",
     "langchain-aws>=1.6.3",
     "langgraph>=1.2.9",
     "langgraph-checkpoint-aws>=1.2.0",
-    "python-dotenv>=1.2.2",
+    "pydantic>=2.0",
 ]
 
 [dependency-groups]
+# Lo que instala el CI: lint y tests.
 dev = [
     "aws-lambda-typing>=2.20.0",
+    "boto3>=1.43.53",
+    "pytest>=8.0",
+    "ruff==0.16.0",
+]
+# Solo para levantar el bot en local; nunca llega a Lambda.
+local = [
+    "fastapi[standard]>=0.139.2",
+    "python-dotenv>=1.2.2",
 ]
 
 [tool.ruff]

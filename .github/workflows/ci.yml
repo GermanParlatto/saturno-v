@@ -25,20 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
+          enable-cache: true
 
-      - name: Instalar dependencias de desarrollo
-        run: pip install -r requirements-dev.txt
+      # --locked falla si el lock no está al día con pyproject.toml, en vez de
+      # re-resolver por detrás (eso sería --frozen).
+      - name: Instalar dependencias desde el lock
+        run: uv sync --locked --group dev
 
       - name: ruff check
-        run: ruff check src tools tests
+        run: uv run ruff check src tools tests
 
       - name: ruff format --check
-        run: ruff format --check src tools tests
+        run: uv run ruff format --check src tools tests
 
   test:
     name: Tests (pytest)
@@ -46,18 +46,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
+          enable-cache: true
 
-      # whatsapp_format.py no importa langchain ni boto3: bastan las dev deps.
-      - name: Instalar dependencias de desarrollo
-        run: pip install -r requirements-dev.txt
+      - name: Instalar dependencias desde el lock
+        run: uv sync --locked --group dev
 
       - name: pytest
-        run: pytest -q
+        run: uv run pytest -q
 
   sam:
     name: Validar y construir plantilla SAM
@@ -65,13 +62,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # sam build instala desde src/requirements.txt (langgraph, langchain-aws...),
-      # que es lo que domina el tiempo de build: se cachea sobre ese fichero.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Si alguien tocó pyproject.toml sin regenerar, sam build empaquetaría
+      # versiones distintas de las declaradas.
+      - name: Comprobar que src/requirements.txt está al día
+        run: make check-requirements
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: src/requirements.txt
 
       - uses: aws-actions/setup-sam@v2
         with:
@@ -81,7 +83,7 @@ jobs:
       - name: sam validate
         run: sam validate --template infra/template.yaml --lint --region ${{ env.AWS_REGION }}
 
-      # Detecta errores de CodeUri/Handler o de resolución de dependencias que
-      # `validate` no ve. No despliega nada ni necesita credenciales.
+      # Detecta errores de CodeUri/Handler y de resolución de deps que
+      # `validate` no ve. No despliega ni necesita credenciales.
       - name: sam build
         run: sam build --template infra/template.yaml
