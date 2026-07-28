@@ -37,6 +37,8 @@ select = [
     "B",   # flake8-bugbear
     "SIM", # flake8-simplify
 ]
+# Compatible con `ruff format` (estilo Black): evita falsos positivos en slices.
+ignore = ["E203"]
 
 [tool.ruff.lint.per-file-ignores]
 # Script one-off de generación de dataset: prints, open() sin context manager
