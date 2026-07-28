@@ -22,12 +22,19 @@ dev = [
     "aws-lambda-typing>=2.20.0",
     "boto3>=1.43.53",
     "pytest>=8.0",
+    "respx>=0.22.0",
     "ruff==0.16.0",
 ]
 # Solo para levantar el bot en local; nunca llega a Lambda.
 local = [
     "fastapi[standard]>=0.139.2",
     "python-dotenv>=1.2.2",
+]
+# Solo para los scripts de tools/. Grupo aparte de `dev` a proposito: asi no lo
+# instala el CI y no puede colarse en src/requirements.txt (openpyxl en Lambda
+# seria un parser de hojas de calculo empaquetado en un bot de WhatsApp).
+tools = [
+    "openpyxl>=3.1",
 ]
 
 [tool.ruff]

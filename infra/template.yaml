@@ -23,6 +23,20 @@ Parameters:
     NoEcho: true
     MinLength: 1
     Description: API key de LangSmith para trazas del grafo (solo worker)
+  SpokyEndpointUrl:
+    Type: String
+    MinLength: 1
+    Description: URL completa del endpoint de Spoky (incluye /v1/chat/completions)
+  SpokyApiToken:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Token de Hugging Face para el endpoint de Spoky
+  DbName:
+    Type: String
+    Default: waku
+    # No es un secreto: no lleva NoEcho ni hace falta darlo de alta en GitHub.
+    Description: Nombre de la base de datos inicial del cluster Aurora
 
 Globals:
   Function:
@@ -34,6 +48,7 @@ Globals:
         # Sin esto, Powertools filtra a WARNING y los logger.info NO aparecen.
         POWERTOOLS_LOG_LEVEL: INFO
         POWERTOOLS_SERVICE_NAME: kapso-bot
+        POWERTOOLS_METRICS_NAMESPACE: kapso-bot
 
 Resources:
   # ------- colas -----------------------------------------------------------
@@ -88,6 +103,130 @@ Resources:
         Enabled: true
       SSESpecification:
         SSEEnabled: true
+
+  # ------- red minima para Aurora ------------------------------------------
+  # El cluster EXIGE subnets aunque nadie se conecte por TCP: todo el acceso es
+  # Data API (HTTPS publico). Por eso aqui NO hay Internet Gateway ni NAT
+  # Gateway, y el security group no tiene reglas de entrada. Coste de red: 0.
+  #
+  # VPC propia y no la default de la cuenta: la default es estado ambiental que
+  # cambia entre cuentas, lo puede borrar un admin y `sam deploy` no la recrea.
+  DbVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  DbSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DbVpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+
+  DbSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DbVpc
+      CidrBlock: 10.20.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets privadas para Aurora (sin salida a internet)
+      SubnetIds: [!Ref DbSubnetA, !Ref DbSubnetB]
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Aurora sin acceso TCP entrante (solo Data API)
+      VpcId: !Ref DbVpc
+
+  # ------- base de datos ---------------------------------------------------
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    # Los datos de los alumnos no se tiran con un `sam delete`. OJO: el borrado
+    # del stack falla si ya existe un snapshot con el mismo nombre.
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: aurora-postgresql
+      # Verificado en eu-west-1: las 16.x disponibles saltan de 16.4 a 16.8, asi
+      # que 16.6 NO existe en esta region. Comprobar con:
+      #   aws rds describe-orderable-db-instance-options --engine aurora-postgresql \
+      #     --engine-version 16.8 --db-instance-class db.serverless --region eu-west-1
+      EngineVersion: "16.8"
+      # Serverless v2 es "provisioned" + ServerlessV2ScalingConfiguration.
+      EngineMode: provisioned
+      DatabaseName: !Ref DbName
+      MasterUsername: postgres
+      # AWS crea Y ROTA el secreto: ninguna password toca el repo ni CloudFormation.
+      ManageMasterUserPassword: true
+      # Esto ES el RDS Data API: sin esto, las Lambdas no pueden hablar con la BD
+      # sin entrar en la VPC.
+      EnableHttpEndpoint: true
+      ServerlessV2ScalingConfiguration:
+        # 0 ACU = el cluster se pausa y deja de facturar computo. A cambio, la
+        # primera consulta tras la pausa tarda; shared/db.py lo reintenta.
+        MinCapacity: 0
+        MaxCapacity: 2
+        SecondsUntilAutoPause: 3600
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VpcSecurityGroupIds: [!GetAtt DbSecurityGroup.GroupId]
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DBCluster
+      Engine: aurora-postgresql
+      DBInstanceClass: db.serverless
+
+  # Politica compartida por el worker y el migrador.
+  DataApiPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - rds-data:ExecuteStatement
+              - rds-data:BatchExecuteStatement
+              # Las tres de transaccion son ACCIONES IAM SEPARADAS. Sin ellas el
+              # migrador falla con un AccessDenied opaco al abrir la transaccion.
+              - rds-data:BeginTransaction
+              - rds-data:CommitTransaction
+              - rds-data:RollbackTransaction
+            Resource: !GetAtt DBCluster.DBClusterArn
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            # Acotado al secreto gestionado. Sigue siendo valido tras la rotacion:
+            # rotar cambia el VALOR, no el ARN.
+            Resource: !GetAtt DBCluster.MasterUserSecret.SecretArn
+
+  # ---- migrador ---------------------------------------------------------------
+  # SIN Events: se invoca a mano con `make migrate`. Aplicar el esquema es un
+  # acto deliberado y separado del deploy: si fuese un Custom Resource, una
+  # migracion fallida provocaria el rollback del stack entero.
+  MigrationFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../src
+      Handler: migrator.handler.handler
+      Timeout: 900 # DDL + seed de 70 filas, con posible reanudacion del cluster
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_CLUSTER_ARN: !GetAtt DBCluster.DBClusterArn
+          DB_SECRET_ARN: !GetAtt DBCluster.MasterUserSecret.SecretArn
+          DB_NAME: !Ref DbName
+      Policies:
+        - !Ref DataApiPolicy
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
 
   # ---- motor de curso (F0: creadas vacías; el worker las usa desde F3) ----
   # Definición del curso: estática (~70 nodos), se cachea en RAM por contenedor.
@@ -173,11 +312,8 @@ Resources:
           LANGSMITH_PROJECT: spoky-bot
           # Tenant EU de LangSmith (no la nube pública por defecto).
           LANGSMITH_ENDPOINT: https://eu.api.smith.langchain.com
-          # ---- motor de curso (F0: tablas cableadas; wiring del worker en F3) ----
-          CATALOG_TABLE: !Ref CourseCatalogTable
-          COURSE_STATE_TABLE: !Ref CourseStateTable
-          COURSE_ID: "waku-l0"
       Policies:
+        - !Ref DataApiPolicy
         - Statement:
             - Effect: Allow
               Action: bedrock:InvokeModel
@@ -217,7 +353,13 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt IncomingQueue.Arn
-            BatchSize: 10
+            # 3, no 10: el handler procesa el lote en SERIE, y ahora cada
+            # mensaje puede sumar una llamada al endpoint de Spoky (que puede
+            # arrancar en frío, 30-60s). Con BatchSize=10 un lote entero contra
+            # un endpoint frío agotaría el Timeout de 120s del worker y volvería
+            # a la cola completo. Con MaximumConcurrency=5 no se pierde
+            # rendimiento real: salen más invocaciones, más pequeñas.
+            BatchSize: 3
             # Permite devolver batchItemFailures y reintentar sólo lo que falló.
             FunctionResponseTypes:
               - ReportBatchItemFailures
@@ -234,3 +376,12 @@ Outputs:
     Value: !Ref IncomingQueue
   DLQUrl:
     Value: !Ref IncomingDLQ
+  DbClusterArn:
+    Description: ARN del cluster, para `aws rds-data execute-statement`
+    Value: !GetAtt DBCluster.DBClusterArn
+  DbSecretArn:
+    Description: ARN del secreto gestionado por AWS (credenciales de la BD)
+    Value: !GetAtt DBCluster.MasterUserSecret.SecretArn
+  MigrationFunctionName:
+    Description: Funcion que aplica las migraciones; la resuelve `make migrate`
+    Value: !Ref MigrationFn

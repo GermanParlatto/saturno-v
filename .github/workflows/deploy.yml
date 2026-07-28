@@ -47,7 +47,7 @@ jobs:
       - name: Verificar que los secrets existen
         run: |
           missing=0
-          for var in KAPSO_API_KEY KAPSO_WEBHOOK_SECRET LANGSMITH_API_KEY AWS_DEPLOY_ROLE_ARN; do
+          for var in KAPSO_API_KEY KAPSO_WEBHOOK_SECRET LANGSMITH_API_KEY SPOKY_ENDPOINT_URL SPOKY_API_TOKEN AWS_DEPLOY_ROLE_ARN; do
             if [ -z "${!var}" ]; then
               echo "::error::Falta el secret $var en el entorno 'production'"
               missing=1
@@ -58,6 +58,8 @@ jobs:
           KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
           KAPSO_WEBHOOK_SECRET: ${{ secrets.KAPSO_WEBHOOK_SECRET }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          SPOKY_ENDPOINT_URL: ${{ secrets.SPOKY_ENDPOINT_URL }}
+          SPOKY_API_TOKEN: ${{ secrets.SPOKY_API_TOKEN }}
           AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
 
       - uses: actions/setup-python@v5
@@ -102,13 +104,17 @@ jobs:
             --parameter-overrides \
               KapsoApiKey="$KAPSO_API_KEY" \
               KapsoWebhookSecret="$KAPSO_WEBHOOK_SECRET" \
-              LangsmithApiKey="$LANGSMITH_API_KEY"
+              LangsmithApiKey="$LANGSMITH_API_KEY" \
+              SpokyEndpointUrl="$SPOKY_ENDPOINT_URL" \
+              SpokyApiToken="$SPOKY_API_TOKEN"
         env:
           # GITHUB_SHA apunta a la rama por defecto: el mismo SHA del checkout.
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
           KAPSO_WEBHOOK_SECRET: ${{ secrets.KAPSO_WEBHOOK_SECRET }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          SPOKY_ENDPOINT_URL: ${{ secrets.SPOKY_ENDPOINT_URL }}
+          SPOKY_API_TOKEN: ${{ secrets.SPOKY_API_TOKEN }}
 
       - name: Outputs del stack
         run: |

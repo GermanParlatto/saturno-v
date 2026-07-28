@@ -15,7 +15,7 @@ from langchain_core.tracers.langchain import wait_for_all_tracers
 from agents.app import run_graph
 from shared.kapso_client import send_text
 from shared.models import WebhookIn
-from shared.observability import logger, tracer
+from shared.observability import logger, metrics, tracer
 from shared.whatsapp_format import format_for_whatsapp
 
 if TYPE_CHECKING:
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
+@metrics.log_metrics(capture_cold_start_metric=True)
 def handler(event: "SQSEvent", context: "Context") -> dict[str, Any]:
     fallidos: list[dict[str, str]] = []
 
