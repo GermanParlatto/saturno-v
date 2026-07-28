@@ -25,6 +25,19 @@ Variables de entorno de las dos Lambdas, de dónde salen y qué pasa si falta ca
 | `SPOKY_API_TOKEN` | sí | — | Parámetro SAM `SpokyApiToken` (`NoEcho`) ← secret de GitHub | Igual que arriba: `SpokyConfigError` + fallback. |
 | `SPOKY_MODEL_NAME` | no | `GParlatto/spoky-qwen-merged-v2` | — | Se usa el default. |
 | `SPOKY_TIMEOUT_SECONDS` | no | `25` | Fijo en el template (`WorkerFn`) | Se usa el default. |
+| `DB_CLUSTER_ARN` | sí | — | `!GetAtt DBCluster.DBClusterArn` (interno) | `KeyError` al primer acceso a la BD. |
+| `DB_SECRET_ARN` | sí | — | `!GetAtt DBCluster.MasterUserSecret.SecretArn` (interno) | `KeyError` al primer acceso a la BD. |
+| `DB_NAME` | sí | `waku` | Parámetro SAM `DbName` (no es secreto) | `KeyError` al primer acceso a la BD. |
+
+## Migrador (`MigrationFn`)
+
+Se invoca a mano (`make migrate`), no tiene `Events:`. Ver [09 · Base de datos](09-Base-de-datos.md).
+
+| Variable | Obligatoria | Default | Origen | Si falta |
+|---|---|---|---|---|
+| `DB_CLUSTER_ARN` | sí | — | `!GetAtt DBCluster.DBClusterArn` (interno) | `KeyError` al aplicar migraciones. |
+| `DB_SECRET_ARN` | sí | — | `!GetAtt DBCluster.MasterUserSecret.SecretArn` (interno) | `KeyError` al aplicar migraciones. |
+| `DB_NAME` | sí | `waku` | Parámetro SAM `DbName` | `KeyError` al aplicar migraciones. |
 
 ## Globales (ambas Lambdas)
 
@@ -73,3 +86,11 @@ Un secreto nuevo requiere editar tres sitios coordinados, o el deploy falla o de
 3. `.github/workflows/deploy.yml` → el bucle "Verificar que los secrets existen" (nombre + su `env:`) y el paso `sam deploy` (`--parameter-overrides` + su `env:`).
 
 Y no olvidar dar de alta el secret en el entorno `production` de GitHub (Settings → Environments → production → Secrets).
+
+### Cuándo NO aplica este checklist
+
+Las credenciales de la base de datos **no** siguen los pasos de arriba, y añadirlas al bucle de `deploy.yml` haría fallar el deploy por un secret de GitHub que no existe.
+
+`DB_CLUSTER_ARN`, `DB_SECRET_ARN` y `DB_NAME` no son secretos de GitHub: los dos primeros salen de un `!GetAtt` sobre el cluster dentro del propio template, y `DB_NAME` es un parámetro sin `NoEcho`. La contraseña de la base de datos **nunca existe como secret**: la crea y la rota AWS (`ManageMasterUserPassword: true`), y las Lambdas solo referencian el ARN del secreto gestionado, que es estable frente a la rotación.
+
+Regla general: si el valor sale de un `!Ref`/`!GetAtt` a otro recurso del stack, es interno y solo requiere el paso 2.
