@@ -27,7 +27,11 @@ import json
 import pathlib
 import sys
 
-from openpyxl import load_workbook
+# OJO: openpyxl NO se importa aqui, sino dentro de leer_assets(). Vive en el
+# grupo `tools`, que el CI no instala (`uv sync --locked --group dev`), asi que
+# un import a nivel de modulo romperia la recoleccion de tests. Con el import
+# diferido, las funciones puras (lit, etapa_desde_id, normaliza_metadata) se
+# pueden importar y testear sin la dependencia.
 
 OUT_DIR = pathlib.Path(__file__).resolve().parents[1] / "src" / "migrations"
 
@@ -71,6 +75,9 @@ def leer_nodos(ruta: pathlib.Path) -> list[dict]:
 
 def leer_assets(ruta: pathlib.Path) -> dict[str, dict]:
     """Filas de la hoja 'assets' indexadas por id, excluyendo las descartadas."""
+    # Import diferido: ver la nota de la cabecera.
+    from openpyxl import load_workbook
+
     libro = load_workbook(ruta, data_only=True, read_only=True)
     hoja = libro["assets"]
     filas = hoja.iter_rows(values_only=True)
