@@ -173,9 +173,9 @@ def seed(table_name: str, course_id: str, dry_run: bool) -> None:
         print("--dry-run: no se escribe nada.")
         return
 
-    table = boto3.resource(
-        "dynamodb", region_name=os.environ.get("AWS_REGION", "eu-west-1")
-    ).Table(table_name)
+    table = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "eu-west-1")).Table(
+        table_name
+    )
     with table.batch_writer() as batch:
         for item in items:
             batch.put_item(Item=item)
