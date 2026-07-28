@@ -4,6 +4,8 @@ import os
 
 import httpx
 
+from shared.observability import logger
+
 
 def send_text(phone_number_id: str, to: str, body: str):
     url = f"https://api.kapso.ai/meta/whatsapp/v24.0/{phone_number_id}/messages"
@@ -20,5 +22,5 @@ def send_text(phone_number_id: str, to: str, body: str):
     }
     with httpx.Client(timeout=10.0) as client:
         resp = client.post(url, headers=headers, json=payload)
-        print(resp.status_code, resp.text)
+        logger.debug("Kapso API response", extra={"status_code": resp.status_code})
         resp.raise_for_status()
