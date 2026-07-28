@@ -1,0 +1,112 @@
+name: deploy
+
+# Se dispara al TERMINAR el workflow "ci", no en el push. Así el despliegue
+# nunca corre en paralelo con lint/validate: si el CI falla, no hay deploy.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC: nada de claves AWS de larga duración
+  contents: read
+
+# Nunca dos despliegues a la vez sobre el mismo stack: CloudFormation
+# rechazaría el segundo (UPDATE_IN_PROGRESS). No se cancela el que ya corre.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  AWS_REGION: eu-west-1
+  STACK_NAME: kapso-whatsapp-bot
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Solo si el CI terminó en verde sobre main (o si se lanza a mano).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    # El entorno "production" es donde se configuran los required reviewers
+    # (aprobación manual) y los secrets del despliegue.
+    environment: production
+    steps:
+      # OJO: workflow_run checkea la rama por defecto, NO el commit que probó
+      # el CI. Hay que fijar el SHA a mano o se desplegaría otra cosa.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Un secret que no existe se expande a "" y CloudFormation lo aceptaría:
+      # el bot arrancaría con el secreto vacío y devolvería 401 a todo Kapso,
+      # con el deploy en verde. Cortamos antes de asumir el rol de AWS.
+      - name: Verificar que los secrets existen
+        run: |
+          missing=0
+          for var in KAPSO_API_KEY KAPSO_WEBHOOK_SECRET LANGSMITH_API_KEY AWS_DEPLOY_ROLE_ARN; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Falta el secret $var en el entorno 'production'"
+              missing=1
+            fi
+          done
+          exit $missing
+        env:
+          KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
+          KAPSO_WEBHOOK_SECRET: ${{ secrets.KAPSO_WEBHOOK_SECRET }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Credenciales AWS vía OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }} # rol IAM con confianza OIDC
+          role-session-name: gha-deploy-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: sam build
+        run: sam build --template infra/template.yaml
+
+      # no se usa --config-file porque infra/samconfig.toml fija
+      # profile = "personal-dev", que no existe en el runner (aquí las
+      # credenciales vienen de OIDC). Los parámetros van explícitos.
+      - name: sam deploy
+        run: |
+          sam deploy \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --tags "git-sha=$DEPLOY_SHA" "managed-by=github-actions" \
+            --parameter-overrides \
+              KapsoApiKey="$KAPSO_API_KEY" \
+              KapsoWebhookSecret="$KAPSO_WEBHOOK_SECRET" \
+              LangsmithApiKey="$LANGSMITH_API_KEY"
+        env:
+          # Bajo workflow_run, GITHUB_SHA apunta a la rama por defecto, no al
+          # commit desplegado: usamos el mismo SHA que se hizo checkout.
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
+          KAPSO_WEBHOOK_SECRET: ${{ secrets.KAPSO_WEBHOOK_SECRET }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+
+      - name: Outputs del stack
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query 'Stacks[0].Outputs' \
+            --output table

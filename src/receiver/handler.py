@@ -7,11 +7,13 @@ Responsabilidad (debe ser RÁPIDA: responder 200 en < 10 s):
   4) Devolver 200 OK de inmediato. NADA de lógica de negocio aquí.
 """
 
+import base64
 import os
-import  base64
-import boto3
 import time
 from typing import TYPE_CHECKING, Any
+
+import boto3
+
 from shared.observability import logger, tracer
 from shared.signature import verify_signature
 
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
 
 dynamo = boto3.client("dynamodb")
 sqs = boto3.client("sqs")
+
 
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
@@ -33,7 +36,11 @@ def handler(event: "APIGatewayProxyEventV2", context: "Context") -> dict[str, An
     text = raw.decode("utf-8")
     signature = event.get("headers", {}).get("x-webhook-signature")
 
-    if (signature is None or  not verify_signature(raw, signature, os.environ["KAPSO_WEBHOOK_SECRET"])):
+    secret = os.environ.get("KAPSO_WEBHOOK_SECRET")
+    if not secret:
+        logger.error("Falta KAPSO_WEBHOOK_SECRET en el entorno")
+        return {"statusCode": 500, "body": "Server misconfigured"}
+    if signature is None or not verify_signature(raw, signature, secret):
         logger.warning("Firma inválida o ausente")
         return {"statusCode": 401, "body": "Invalid signature"}
 

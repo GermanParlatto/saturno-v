@@ -31,7 +31,7 @@ llm = ChatBedrockConverse(
 
 def llm_node(state: AgentState) -> dict:
     """Invoca el modelo con el historial y devuelve su respuesta."""
-    
+
     respuesta = llm.invoke([SystemMessage(content=SYSTEM_PROMPT), *state["messages"]])
 
     # Devolvemos sólo lo nuevo: el reducer `add_messages` lo añade al historial.

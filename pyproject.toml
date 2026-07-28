@@ -19,3 +19,28 @@ dependencies = [
 dev = [
     "aws-lambda-typing>=2.20.0",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+# Artefactos de build de SAM: son dependencias vendorizadas, no código nuestro.
+extend-exclude = ["infra/.aws-sam", ".venv"]
+
+[tool.ruff.lint]
+# Conjunto explícito de reglas: sin esto ruff usa su set por defecto y los
+# resultados del CI cambian con cada release nueva de ruff.
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+# Compatible con `ruff format` (estilo Black): evita falsos positivos en slices.
+ignore = ["E203"]
+
+[tool.ruff.lint.per-file-ignores]
+# Script one-off de generación de dataset: prints, open() sin context manager
+# y bucles largos son aceptables aquí.
+"tools/*" = ["SIM115", "E501"]

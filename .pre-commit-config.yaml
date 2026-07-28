@@ -1,0 +1,33 @@
+# Framework pre-commit: https://pre-commit.com
+#
+# Activar (una vez por clon):   pre-commit install
+# Pasada completa a demanda:    pre-commit run --all-files
+# Saltar puntualmente:          git commit --no-verify
+#
+
+exclude: '^(infra/\.aws-sam/|\.venv/)'
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
+    hooks:
+      # Lint con arreglos automáticos seguros (I001, F401, UP, SIM...).
+      # Las reglas salen de [tool.ruff.lint] en pyproject.toml.
+      - id: ruff
+        args: [--fix]
+      # Formato, después del fix para dejarlo todo consistente.
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-yaml
+        # Las plantillas SAM/CloudFormation usan tags propios (!Ref, !GetAtt)
+        exclude: '^infra/template\.yaml$'
+      - id: check-toml
+      - id: detect-private-key
