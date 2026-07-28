@@ -1,6 +1,6 @@
 """Cliente del endpoint de Spoky (HF Inference Endpoints, API compatible OpenAI).
 
-Sirve el modelo `spoky-qwen-merged-v2` con vLLM en /v1/chat/completions. A
+Sirve el modelo `GParlatto/spoky-qwen-merged-v2` con vLLM en /v1/chat/completions. A
 diferencia del nodo `llm` (que usa ChatBedrockConverse), esto es httpx directo:
 LangSmith no lo traza automáticamente, por eso `generar` va decorada con
 @traceable.
@@ -129,7 +129,7 @@ def generar(mensajes: list[dict], *, max_tokens: int = 200, temperature: float =
     url, token = _config()
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
-        "model": os.environ.get("SPOKY_MODEL_NAME", "spoky-qwen-merged-v2"),
+        "model": os.environ.get("SPOKY_MODEL_NAME", "GParlatto/spoky-qwen-merged-v2"),
         "messages": mensajes,
         "max_tokens": max_tokens,
         "temperature": temperature,

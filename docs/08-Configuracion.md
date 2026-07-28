@@ -23,7 +23,7 @@ Variables de entorno de las dos Lambdas, de dónde salen y qué pasa si falta ca
 | `LANGSMITH_ENDPOINT` | no | `https://eu.api.smith.langchain.com` (fijo) | — | — |
 | `SPOKY_ENDPOINT_URL` | sí | — | Parámetro SAM `SpokyEndpointUrl` ← secret de GitHub | El deploy rechaza (`MinLength: 1`); en runtime, `SpokyConfigError` y el finalizador cae al borrador del tutor (nunca rompe el pipeline). |
 | `SPOKY_API_TOKEN` | sí | — | Parámetro SAM `SpokyApiToken` (`NoEcho`) ← secret de GitHub | Igual que arriba: `SpokyConfigError` + fallback. |
-| `SPOKY_MODEL_NAME` | no | `spoky-qwen-merged-v2` | — | Se usa el default. |
+| `SPOKY_MODEL_NAME` | no | `GParlatto/spoky-qwen-merged-v2` | — | Se usa el default. |
 | `SPOKY_TIMEOUT_SECONDS` | no | `25` | Fijo en el template (`WorkerFn`) | Se usa el default. |
 
 ## Globales (ambas Lambdas)
