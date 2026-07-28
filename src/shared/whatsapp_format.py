@@ -12,10 +12,13 @@ heurística de código nunca corre dentro de código ya delimitado, y las URLs n
 manglean, por construcción.
 """
 
+import logging
 import os
 import re
 
-from shared.observability import logger
+# logging estándar (no shared.observability): este módulo es stdlib puro a propósito,
+# para que los tests corran sin instalar aws-lambda-powertools (ver requirements-dev.txt).
+logger = logging.getLogger(__name__)
 
 # El cierre de un bloque debe ser un ``` que empieza su propia línea (convención real
 # de Markdown): así se distingue de un ``` que aparece como CONTENIDO a mitad de línea
