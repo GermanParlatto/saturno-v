@@ -9,11 +9,11 @@ Parameters:
   KapsoApiKey:
     Type: String
     NoEcho: true
-    MinLength: "1"
+    MinLength: 1
   KapsoWebhookSecret:
     Type: String
     NoEcho: true
-    MinLength: "1"
+    MinLength: 1
   ModelId:
     Type: String
     Default: eu.amazon.nova-2-lite-v1:0
