@@ -1,4 +1,4 @@
-.PHONY: install lint build deploy
+.PHONY: install lint validate-sam build deploy
 install:
 	uv sync
 lint:
