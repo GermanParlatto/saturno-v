@@ -1,5 +1,0 @@
-# Fijado a la misma versión que el hook de .pre-commit-config.yaml (rev v0.16.0):
-# si divergen, el CI y el pre-commit local dan resultados distintos.
-ruff==0.16.0
-pytest
-boto3
