@@ -47,7 +47,7 @@ jobs:
       - name: Verificar que los secrets existen
         run: |
           missing=0
-          for var in KAPSO_API_KEY KAPSO_WEBHOOK_SECRET LANGSMITH_API_KEY; do
+          for var in KAPSO_API_KEY KAPSO_WEBHOOK_SECRET LANGSMITH_API_KEY AWS_DEPLOY_ROLE_ARN; do
             if [ -z "${!var}" ]; then
               echo "::error::Falta el secret $var en el entorno 'production'"
               missing=1
@@ -58,6 +58,7 @@ jobs:
           KAPSO_API_KEY: ${{ secrets.KAPSO_API_KEY }}
           KAPSO_WEBHOOK_SECRET: ${{ secrets.KAPSO_WEBHOOK_SECRET }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
 
       - uses: actions/setup-python@v5
         with:
