@@ -9,8 +9,12 @@ from shared.observability import logger
 
 def send_text(phone_number_id: str, to: str, body: str):
     url = f"https://api.kapso.ai/meta/whatsapp/v24.0/{phone_number_id}/messages"
+    api_key = os.environ.get("KAPSO_API_KEY")
+    if not api_key:
+        logger.error("Falta KAPSO_API_KEY en el entorno")
+        raise RuntimeError("Missing KAPSO_API_KEY environment variable")
     headers = {
-        "X-API-Key": os.environ["KAPSO_API_KEY"],
+        "X-API-Key": api_key,
         "Content-Type": "application/json",
     }
     payload = {
