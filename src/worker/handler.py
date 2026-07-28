@@ -7,6 +7,7 @@ ReportBatchItemFailures en la plantilla). Sin esto, con BatchSize=10 un solo
 fallo reenviaría nueve respuestas duplicadas.
 """
 
+import hashlib
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.tracers.langchain import wait_for_all_tracers
@@ -35,7 +36,16 @@ def handler(event: "SQSEvent", context: "Context") -> dict[str, Any]:
             phone_number_id = data.phone_number_id
 
             logger.append_keys(conversation_id=numero)
-            logger.info("Procesando mensaje", extra={"texto": texto})
+            # No registrar el texto del alumno (PII): puede contener nombre, correo y
+            # teléfono del tutor (R0-01). Se emite longitud + hash corto, suficiente para
+            # correlacionar duplicados sin exponer el contenido en CloudWatch.
+            logger.info(
+                "Procesando mensaje",
+                extra={
+                    "texto_len": len(texto),
+                    "texto_hash": hashlib.sha256(texto.encode()).hexdigest()[:12],
+                },
+            )
 
             # thread_id = número de teléfono: la clave natural de la conversación.
             reply = format_for_whatsapp(run_graph(texto, thread_id=numero))
