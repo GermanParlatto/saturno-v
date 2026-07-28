@@ -24,6 +24,22 @@ def test_fence_with_nested_triple_backtick_not_split():
     assert format_for_whatsapp(text) == expected
 
 
+def test_fence_opened_mid_line_after_prose_is_protected():
+    # La apertura ``` no tiene por qué estar al inicio de línea: es un patrón real
+    # de salida del LLM ("Aquí tienes: ```python\n...").
+    text = "Aquí tienes: ```python\nclass Foo:\n    def __init__(self):\n        pass\n```"
+    expected = "Aquí tienes: ```\nclass Foo:\n    def __init__(self):\n        pass\n```"
+    assert format_for_whatsapp(text) == expected
+
+
+def test_unclosed_fence_does_not_swallow_a_later_real_fence():
+    text = "Abre ```\ny sigue\nmas\n```js\nreal code\n```"
+    result = format_for_whatsapp(text)
+    # El ``` suelto queda como prosa literal; el bloque real más adelante se protege
+    # y pierde su tag de lenguaje como cualquier otro fence bien formado.
+    assert result == "Abre ```\ny sigue\nmas\n```\nreal code\n```"
+
+
 def test_fence_special_chars_not_transformed():
     text = "```\n*bold* _it_ **b** # h - item\n```"
     assert format_for_whatsapp(text) == text
@@ -59,7 +75,15 @@ def test_bold_md_to_whatsapp():
 
 
 def test_bold_underscore_to_whatsapp():
-    assert format_for_whatsapp("Esto es __importante__ hoy.") == "Esto es *importante* hoy."
+    assert format_for_whatsapp("Esto es __muy importante__ hoy.") == "Esto es *muy importante* hoy."
+
+
+def test_bold_underscore_single_word_left_untouched_to_protect_dunders():
+    # __word__ de una sola palabra no se convierte a propósito: así se evitan falsos
+    # positivos sobre identificadores dunder de Python (__init__, __str__, __name__)
+    # que de otro modo se corromperían al aparecer sueltos en la prosa.
+    assert format_for_whatsapp("Esto es __importante__ hoy.") == "Esto es __importante__ hoy."
+    assert format_for_whatsapp("dunder tipico: __name__") == "dunder tipico: __name__"
 
 
 def test_bold_lookaround_does_not_match_math():

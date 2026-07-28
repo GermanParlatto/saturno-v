@@ -15,10 +15,21 @@ manglean, por construcción.
 import os
 import re
 
-# Ancladas a inicio de línea (^```): una tirada de backticks a mitad de línea (p.ej.
-# dentro de un `print('```')`) no puede cerrar el bloque por accidente.
+from shared.observability import logger
+
+# El cierre de un bloque debe ser un ``` que empieza su propia línea (convención real
+# de Markdown): así se distingue de un ``` que aparece como CONTENIDO a mitad de línea
+# (p.ej. dentro de `print('```')`). El cuerpo, además, no puede contener ninguna línea
+# que empiece con ```: si la contuviera, ese ``` interior sería el cierre "real" más
+# cercano, y preferimos no tratar el ``` inicial como apertura antes que tragarnos un
+# bloque real más adelante (nunca "de acuerdo" implícito con un bloque sin cerrar).
+# La apertura NO exige estar al inicio de línea: un fence puede abrirse a mitad de
+# frase ("Aquí tienes: ```python\n...").
+_FENCE_MULTI = r"```[^\n`]*\n(?:(?!\n[ \t]*```).)*\n[ \t]*```(?=[ \t]*(?:\n|$))"
+_FENCE_ONE = r"```[^\n`]+```"
+
 _PROTECTED = re.compile(
-    r"(?P<fence>(?m:^)```[^\n`]*\n.*?\n(?m:^)```|```[^\n`]*```)"
+    rf"(?P<fence>{_FENCE_MULTI}|{_FENCE_ONE})"
     r"|(?P<inline>`[^`\n]+`)"
     r"|(?P<url>(?:https?://|www\.)\S+)",
     re.DOTALL,
@@ -27,22 +38,42 @@ _PROTECTED = re.compile(
 _FENCE_LANG = re.compile(r"\A```[^\n`]*(?=\n)")
 
 _BOLD_MD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
-_BOLD_UND = re.compile(r"__(?=\S)(.+?)(?<=\S)__", re.DOTALL)
+# Exige un espacio dentro del contenido: una frase de negrita casi siempre tiene más
+# de una palabra. Esto excluye a propósito identificadores dunder de Python de una
+# sola palabra (`__init__`, `__str__`, `__name__`), que de otro modo se corromperían
+# (`__init__` -> `*init*`) al aparecer sueltos en la prosa. El costo es no convertir
+# `__palabra__` de una sola palabra a negrita; se prefiere ese falso negativo a
+# corromper código.
+_BOLD_UND = re.compile(r"__(?=\S)([^_\n]*\s[^_\n]*)(?<=\S)__", re.DOTALL)
 _HEADING = re.compile(r"(?m)^[ \t]*#{1,6}[ \t]+")
 _BULLET = re.compile(r"(?m)^([ \t]*)[-*][ \t]+")
 
 _IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
-_ARG = r"(?:[A-Za-z_][A-Za-z0-9_.]*|-?\d+(?:\.\d+)?|'[^'\n]*'|\"[^\"\n]*\")"
+_CALLNAME = rf"(?:{_IDENT}\.)*{_IDENT}"
+_NUM = r"-?\d+(?:\.\d+)?"
+_STR = r"'[^'\n]*'|\"[^\"\n]*\""
+# Un argumento puede ser, además de identificador/número/cadena, una llamada anidada
+# de un nivel (p.ej. `print(foo(x))`): sin esto, CALL sólo casaba la llamada más
+# interna y dejaba la exterior suelta, produciendo un envoltorio parcial y roto
+# (`print(`foo(x)`)` en vez de envolver toda la expresión o dejarla intacta).
+_NESTED_CALL = rf"{_CALLNAME}\([^()\n]*\)"
+_ARG = rf"(?:{_NESTED_CALL}|{_IDENT}(?:\.{_IDENT})*|{_NUM}|{_STR})"
 _ARGS = rf"(?:{_ARG}(?:\s*,\s*{_ARG})*)?"
 
-# Llamada a función/método: print(x), console.log('h'), math.sqrt(16).
-_CALL = re.compile(rf"(?<![\w`.])((?:{_IDENT}\.)*{_IDENT}\(\s*{_ARGS}\s*\))")
+# Llamada a función/método: print(x), console.log('h'), math.sqrt(16), print(foo(x)).
+_CALL = re.compile(rf"(?<![\w`.])({_CALLNAME}\(\s*{_ARGS}\s*\))")
 # Sentencia de declaración/importación al inicio de línea: def f(x):, import os.
-_STMT = re.compile(rf"(?m)^[ \t]*((?:def|class|import|from)\s+{_IDENT}[^\n]*)$")
+# Se corta antes de un comentario `#` (nunca válido dentro de la sintaxis de
+# def/class/import/from en sí), para no tragarse texto humano tras el código
+# ("def f(x): return x  # importante" no debe envolver "# importante").
+_STMT = re.compile(rf"(?m)^[ \t]*((?:def|class|import|from)\s+{_IDENT}[^\n#]*?)[ \t]*(?:#.*)?$")
 
-# Interruptor de emergencia: si la heurística se porta mal en producción, se desactiva
-# con WHATSAPP_CODE_HEURISTIC=0 sin desplegar código nuevo.
-ENABLE_CODE_HEURISTIC = os.environ.get("WHATSAPP_CODE_HEURISTIC", "1") != "0"
+
+def _enable_code_heuristic() -> bool:
+    # Se lee en cada llamada (no se cachea a nivel de módulo) para que el interruptor
+    # de emergencia WHATSAPP_CODE_HEURISTIC=0 surta efecto sin reiniciar el contenedor
+    # Lambda: un valor cacheado en el import no vería el cambio hasta un cold start.
+    return os.environ.get("WHATSAPP_CODE_HEURISTIC", "1") != "0"
 
 
 def _strip_fence_lang(fence: str) -> str:
@@ -64,7 +95,10 @@ def _wrap_code_heuristic(text: str) -> str:
     for m in _STMT.finditer(text):
         if m.start() > pos:
             parts.append(_CALL.sub(r"`\1`", text[pos : m.start()]))
-        parts.append(_STMT.sub(r"`\1`", m.group()))
+        # m.group() puede incluir un comentario '# ...' tras la sentencia (ver _STMT):
+        # sólo el grupo 1 se envuelve en backticks, el resto del match (el comentario,
+        # si lo hay) se conserva tal cual a continuación.
+        parts.append(f"`{m.group(1)}`{m.group()[len(m.group(1)) :]}")
         pos = m.end()
     if pos < len(text):
         parts.append(_CALL.sub(r"`\1`", text[pos:]))
@@ -76,7 +110,7 @@ def _format_prose(text: str) -> str:
     text = _BOLD_UND.sub(r"*\1*", text)
     text = _HEADING.sub("", text)
     text = _BULLET.sub(r"\1• ", text)
-    if ENABLE_CODE_HEURISTIC:
+    if _enable_code_heuristic():
         text = _wrap_code_heuristic(text)
     return text
 
@@ -85,7 +119,9 @@ def format_for_whatsapp(text: str) -> str:
     """Convierte texto Markdown-ish en formato de chat de WhatsApp.
 
     Pura, sin I/O. Nunca lanza: ante cualquier duda, se prefiere devolver la entrada
-    (o el segmento) sin tocar antes que arriesgar un mensaje corrupto.
+    sin tocar antes que arriesgar un mensaje corrupto. Si eso ocurre, se registra
+    (con `logger.exception`) para que un fallo real de la heurística sea visible en
+    producción en vez de degradar en silencio.
     """
     if not text:
         return text
@@ -105,22 +141,5 @@ def format_for_whatsapp(text: str) -> str:
             parts.append(_format_prose(text[pos:]))
         return "".join(parts)
     except Exception:
+        logger.exception("Fallo formateando mensaje para WhatsApp; se envía sin formatear")
         return text
-
-
-def normalize_content(content: object) -> str:
-    """Aplana el `.content` de un mensaje de LangChain a texto plano.
-
-    Con ChatBedrockConverse, `.content` puede ser un `str` o una lista de bloques
-    (dicts). Se concatenan sólo los bloques de texto, sin separador (Bedrock ya los
-    entrega troceados; añadir "\\n" inventaría saltos de línea que no existían).
-    """
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            block.get("text", "") if isinstance(block, dict) else str(block)
-            for block in content
-            if not isinstance(block, dict) or block.get("type", "text") == "text"
-        )
-    return str(content)

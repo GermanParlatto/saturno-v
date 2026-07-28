@@ -1,6 +1,5 @@
 import pytest
 
-from shared import whatsapp_format
 from shared.whatsapp_format import format_for_whatsapp
 
 TRUE_POSITIVES_INLINE = [
@@ -67,10 +66,24 @@ def test_heuristic_does_not_run_inside_fence_or_inline_or_url():
 
 
 def test_heuristic_can_be_disabled(monkeypatch):
-    monkeypatch.setattr(whatsapp_format, "ENABLE_CODE_HEURISTIC", False)
+    # Se lee en cada llamada (no se cachea a nivel de módulo) para que el interruptor
+    # surta efecto sin reiniciar el contenedor Lambda: se simula vía la env var, no
+    # parcheando un atributo de módulo.
+    monkeypatch.setenv("WHATSAPP_CODE_HEURISTIC", "0")
     text = "Usa print(x) para mostrar."
     assert format_for_whatsapp(text) == text
 
     # El resto de transformaciones (negrita, tag de lenguaje) se siguen aplicando.
     assert format_for_whatsapp("Esto es **importante**.") == "Esto es *importante*."
     assert format_for_whatsapp("```py\ncode\n```") == "```\ncode\n```"
+
+
+def test_nested_call_wraps_whole_expression_not_just_inner():
+    text = "Llama print(foo(x)) aqui."
+    assert format_for_whatsapp(text) == "Llama `print(foo(x))` aqui."
+
+
+def test_statement_does_not_swallow_trailing_comment():
+    text = "Prueba esto:\ndef f(x): return x  # importante\nY listo."
+    result = format_for_whatsapp(text)
+    assert result == "Prueba esto:\n`def f(x): return x`  # importante\nY listo."

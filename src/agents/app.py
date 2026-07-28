@@ -1,7 +1,6 @@
 """Entrypoint del grafo: la única función que el worker necesita conocer."""
 
 from agents.graph import build_graph
-from shared.whatsapp_format import normalize_content
 
 # Se construye UNA VEZ por contenedor Lambda (no en cada invocación).
 GRAPH = build_graph()
@@ -20,6 +19,6 @@ def run_graph(user_message: str, thread_id: str) -> str:
 
     result = GRAPH.invoke({"messages": [("user", user_message)]}, config)
 
-    # El último mensaje del historial es la respuesta del modelo. Con
-    # ChatBedrockConverse, `.content` puede ser un str o una lista de bloques.
-    return normalize_content(result["messages"][-1].content)
+    # `.text` (de BaseMessage) aplana el .content a str: con ChatBedrockConverse
+    # puede venir como str o como lista de bloques de contenido.
+    return result["messages"][-1].text

@@ -40,6 +40,12 @@ def handler(event: "SQSEvent", context: "Context") -> dict[str, Any]:
             # thread_id = número de teléfono: la clave natural de la conversación.
             reply = format_for_whatsapp(run_graph(texto, thread_id=numero))
 
+            if not reply.strip():
+                # Respuesta vacía (p.ej. el modelo devolvió content=""): no hay nada
+                # útil que enviar. Se trata como fallo del mensaje en vez de mandar
+                # un WhatsApp vacío al usuario.
+                raise ValueError("El grafo devolvió una respuesta vacía")
+
             send_text(phone_number_id, to=numero, body=reply)
 
             logger.info("Respuesta enviada")
