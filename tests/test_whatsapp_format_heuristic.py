@@ -62,7 +62,8 @@ def test_heuristic_idempotent_on_already_backticked_code():
 
 def test_heuristic_does_not_run_inside_fence_or_inline_or_url():
     text = "```\nprint(x)\n```\n`suma(a, b)`\nhttps://ej.com/print(x)"
-    assert format_for_whatsapp(text) == text
+    expected = "`\nprint(x)\n`\n`suma(a, b)`\nhttps://ej.com/print(x)"
+    assert format_for_whatsapp(text) == expected
 
 
 def test_heuristic_can_be_disabled(monkeypatch):
@@ -73,9 +74,9 @@ def test_heuristic_can_be_disabled(monkeypatch):
     text = "Usa print(x) para mostrar."
     assert format_for_whatsapp(text) == text
 
-    # El resto de transformaciones (negrita, tag de lenguaje) se siguen aplicando.
+    # El resto de transformaciones (negrita, bajada de fence) se siguen aplicando.
     assert format_for_whatsapp("Esto es **importante**.") == "Esto es *importante*."
-    assert format_for_whatsapp("```py\ncode\n```") == "```\ncode\n```"
+    assert format_for_whatsapp("```py\ncode\n```") == "`\ncode\n`"
 
 
 def test_nested_call_wraps_whole_expression_not_just_inner():
