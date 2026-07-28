@@ -1,4 +1,4 @@
-.PHONY: install lint test build deploy
+.PHONY: install lint build deploy
 install:
 	uv sync
 lint:
