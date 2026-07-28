@@ -36,7 +36,10 @@ def handler(event: "APIGatewayProxyEventV2", context: "Context") -> dict[str, An
     text = raw.decode("utf-8")
     signature = event.get("headers", {}).get("x-webhook-signature")
 
-    secret = os.environ["KAPSO_WEBHOOK_SECRET"]
+    secret = os.environ.get("KAPSO_WEBHOOK_SECRET")
+    if not secret:
+        logger.error("Falta KAPSO_WEBHOOK_SECRET en el entorno")
+        return {"statusCode": 500, "body": "Server misconfigured"}
     if signature is None or not verify_signature(raw, signature, secret):
         logger.warning("Firma inválida o ausente")
         return {"statusCode": 401, "body": "Invalid signature"}
