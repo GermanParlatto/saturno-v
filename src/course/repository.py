@@ -98,12 +98,28 @@ def advance_position(phone: str, expected_order: int, next_order: int, last_node
         raise
 
 
-def set_waiting(phone: str, waiting: bool) -> None:
-    """Marca si el alumno está en pausa esperando respuesta (`pauses=true`)."""
+def set_waiting(phone: str, waiting: bool, last_question: str | None = None) -> None:
+    """Marca si el alumno está en pausa esperando respuesta (`pauses=true`).
+
+    `last_question` viaja aquí porque pausar es el único momento en que importa: es lo
+    último que el alumno leyó y lo que el evaluador necesita en el turno siguiente. Se
+    escribe en el `UpdateItem` que ya se hacía, sin llamada extra.
+
+    Sin valor se BORRA en vez de conservarse: una pregunta obsoleta de dos nodos atrás
+    haría evaluar la respuesta contra lo que no se preguntó, que es peor que no tener
+    pregunta (para eso está el respaldo `CourseNode.question`).
+    """
+    expresion = "SET waiting = :w, updated_at = :now, last_interaction_at = :now"
+    valores = {":w": waiting, ":now": _now()}
+    if last_question:
+        expresion += ", last_question = :lq"
+        valores[":lq"] = last_question
+    else:
+        expresion += " REMOVE last_question"
     _table().update_item(
         Key=_key(phone),
-        UpdateExpression="SET waiting = :w, updated_at = :now, last_interaction_at = :now",
-        ExpressionAttributeValues={":w": waiting, ":now": _now()},
+        UpdateExpression=expresion,
+        ExpressionAttributeValues=valores,
     )
 
 

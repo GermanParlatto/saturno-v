@@ -24,10 +24,17 @@ def advance(state: CourseState) -> CourseState:
     if state.get("course_completed"):
         return {}
 
+    if state.get("sequence_gap"):
+        # El runner encontró un agujero en la secuencia y no envió nada. Avanzar por
+        # encima sería saltarse el nodo que falta en silencio: se deja la posición
+        # intacta para que, arreglado el catálogo, el alumno retome donde estaba.
+        return {}
+
     if state.get("waiting"):
         # Pausa: la posición NO avanza; el nodo actual sigue siendo el pendiente de
-        # respuesta. Solo se marca la espera para que el próximo mensaje lo sepa.
-        set_waiting(phone, True)
+        # respuesta. Se marca la espera y se guarda el texto literal de lo último que
+        # leyó el alumno, que es contra lo que habrá que evaluar su respuesta.
+        set_waiting(phone, True, state.get("last_question"))
         return {}
 
     order = state["current_order"]

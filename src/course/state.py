@@ -33,6 +33,10 @@ class CourseState(TypedDict, total=False):
     current_order: int
     last_node_id: str | None
     waiting: bool
+    # Texto literal del último mensaje de TEXTO enviado en esta invocación. Un nodo de
+    # media lo pone a None: si lo último que vio el alumno fue un vídeo, no hay pregunta
+    # que arrastrar y el evaluador debe caer al `question` del catálogo.
+    last_question: str | None
     # entrada del alumno
     student_answer: str
     # control del loop
@@ -40,3 +44,6 @@ class CourseState(TypedDict, total=False):
     continue_flag: bool
     sent_count: int
     throttled: bool
+    # Agujero en la numeración de la secuencia: no hay nodo en esta posición pero el
+    # curso no ha terminado. No es fin de curso y tampoco se puede avanzar por encima.
+    sequence_gap: bool

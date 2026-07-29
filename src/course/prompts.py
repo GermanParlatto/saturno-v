@@ -118,7 +118,14 @@ def system_prompt(estado: UserState | None, nodo: CourseNode | None = None) -> s
 # Van como mensaje de usuario, no en el system: son la tarea concreta de ESTE turno,
 # mientras que el system describe quién eres y qué no puedes hacer nunca.
 
-PREGUNTA = "Le planteaste esto al copiloto: «{pregunta}»\n"
+# Se formula como CONTEXTO cerrado, no como tarea. La primera pasada real (H4) mostró
+# al modelo repitiendo la pregunta en vez de responder: el catálogo la guarda en
+# imperativo («Pregunta al humano si había escuchado sobre Python») y con la cabecera
+# anterior («Le planteaste esto al copiloto») la leía como una orden pendiente.
+PREGUNTA = (
+    "Contexto — en el turno anterior ya le planteaste esto al copiloto: «{pregunta}»\n"
+    "Esa pregunta YA está hecha y él acaba de contestarla. No vuelvas a formularla.\n"
+)
 
 
 def con_pregunta(plantilla: str, pregunta: str | None, **campos) -> str:
@@ -136,7 +143,9 @@ OPEN = (
     "Su respuesta: «{respuesta}»\n\n"
     "Tu tarea: {instruccion}\n\n"
     "No hay respuesta correcta ni incorrecta: acoge lo que ha dicho, conéctalo con la "
-    "misión y sigue adelante. No evalúes ni corrijas."
+    "misión y sigue adelante. No evalúes ni corrijas.\n"
+    "Tu mensaje tiene que REACCIONAR a lo que él acaba de decir, mencionándolo. No "
+    "vuelvas a preguntarle lo mismo ni le pidas que responda otra vez."
 )
 
 STRICT = (

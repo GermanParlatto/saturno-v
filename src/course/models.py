@@ -73,6 +73,11 @@ class UserState(BaseModel):
     last_node_id: str | None = None
     waiting: bool = False
     attempts: int = 0
+    # Texto LITERAL de la última pregunta enviada antes de pausar. Tiene precedencia
+    # sobre `CourseNode.question` al evaluar: el catálogo guarda la acotación de guion
+    # («Pregunta al humano si había escuchado sobre Python»), que el modelo confunde con
+    # una orden y vuelve a formular; esto guarda lo que el alumno leyó de verdad.
+    last_question: str | None = None
     # control de concurrencia / auditoría
     version: int = 0
     updated_at: str | None = None

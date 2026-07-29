@@ -21,6 +21,7 @@ def identify_user(state: CourseState) -> CourseState:
             "waiting": False,
             "sent_count": 0,
             "user": None,
+            "last_question": None,
         }
 
     return {
@@ -30,4 +31,5 @@ def identify_user(state: CourseState) -> CourseState:
         "waiting": guardado.waiting,
         "sent_count": 0,
         "user": guardado,
+        "last_question": guardado.last_question,
     }

@@ -37,28 +37,43 @@ def _instruccion(nodo: CourseNode) -> str:
     return nodo.eval_instruction or nodo.description
 
 
+def _pregunta(nodo: CourseNode, estado: UserState | None) -> str | None:
+    """Qué se le planteó al alumno, con el texto REAL por delante del guion.
+
+    `estado.last_question` es el mensaje literal que se le envió antes de pausar;
+    `nodo.question` es la acotación editorial del catálogo, a menudo en imperativo
+    («Pregunta al humano si había escuchado sobre Python»), que el modelo confunde con
+    una orden y vuelve a formular en vez de responder (H4 de la primera pasada real).
+    Se prefiere el literal y se cae al catálogo solo si no lo hay.
+    """
+    return (estado.last_question if estado else None) or nodo.question
+
+
 def evaluar(
     nodo: CourseNode, respuesta: str, estado: UserState | None, phone: str
 ) -> tuple[str | None, bool]:
     system = prompts.system_prompt(estado, nodo)
+    pregunta = _pregunta(nodo, estado)
 
     if nodo.eval_type == "register":
-        return _registro(nodo, respuesta, system, phone)
+        return _registro(nodo, respuesta, system, phone, estado)
     if nodo.eval_type == "ack":
         return _acuse(respuesta, system)
     if nodo.eval_type == "strict":
-        return _estricta(nodo, respuesta, system, estado, phone)
+        return _estricta(nodo, respuesta, system, estado, phone, pregunta)
     # `open` y cualquier nodo que pause sin tipo: acoger y seguir. Nunca bloquear al
     # alumno por un dato de catálogo incompleto.
-    return _abierta(nodo, respuesta, system)
+    return _abierta(nodo, respuesta, system, pregunta)
 
 
-def _abierta(nodo: CourseNode, respuesta: str, system: str) -> tuple[str, bool]:
+def _abierta(
+    nodo: CourseNode, respuesta: str, system: str, pregunta: str | None
+) -> tuple[str, bool]:
     borrador = generar_borrador(
         system,
         prompts.con_pregunta(
             prompts.OPEN,
-            nodo.question,
+            pregunta,
             instruccion=_instruccion(nodo),
             respuesta=respuesta,
         ),
@@ -76,13 +91,18 @@ def _acuse(respuesta: str, system: str) -> tuple[str | None, bool]:
 
 
 def _estricta(
-    nodo: CourseNode, respuesta: str, system: str, estado: UserState | None, phone: str
+    nodo: CourseNode,
+    respuesta: str,
+    system: str,
+    estado: UserState | None,
+    phone: str,
+    pregunta: str | None,
 ) -> tuple[str, bool]:
     veredicto = generar_json(
         system,
         prompts.con_pregunta(
             prompts.STRICT,
-            nodo.question,
+            pregunta,
             instruccion=_instruccion(nodo),
             respuesta=respuesta,
         ),
@@ -118,7 +138,7 @@ def _estricta(
         system,
         prompts.con_pregunta(
             prompts.PISTA,
-            nodo.question,
+            pregunta,
             instruccion=_instruccion(nodo),
             respuesta=respuesta,
             escalada=prompts.escalada(intentos),
@@ -135,7 +155,9 @@ def _estricta(
     return mensaje, False
 
 
-def _registro(nodo: CourseNode, respuesta: str, system: str, phone: str) -> tuple[str | None, bool]:
+def _registro(
+    nodo: CourseNode, respuesta: str, system: str, phone: str, estado: UserState | None
+) -> tuple[str | None, bool]:
     datos = generar_json(
         system, prompts.REGISTER.format(instruccion=_instruccion(nodo), respuesta=respuesta)
     )
@@ -154,7 +176,15 @@ def _registro(nodo: CourseNode, respuesta: str, system: str, phone: str) -> tupl
     perfil = {c: datos.get(c) for c in CAMPOS_PERFIL}
     update_profile(phone, **perfil)
 
-    faltan = [c for c in CAMPOS_PERFIL if not perfil.get(c)]
+    # Qué falta se mide sobre el perfil ACUMULADO, no sobre la extracción de este turno.
+    # Un alumno de 10-14 años reparte los datos en varios mensajes (y la propia
+    # instrucción del catálogo lo prevé): mirar solo lo de ahora dejaría el alta sin
+    # completarse nunca, con el curso atascado en el nodo 1.
+    faltan = [
+        c
+        for c in CAMPOS_PERFIL
+        if not (perfil.get(c) or (getattr(estado, c, None) if estado else None))
+    ]
     mensaje = (datos.get("mensaje") or "").strip()
 
     if faltan:
@@ -162,4 +192,14 @@ def _registro(nodo: CourseNode, respuesta: str, system: str, phone: str) -> tupl
         return aplicar_voz(mensaje) if mensaje else None, False
 
     logger.info("Alta completada")
-    return aplicar_voz(mensaje) if mensaje else None, True
+    if not mensaje:
+        # Nunca cerrar el alta en silencio: el alumno acaba de entregar sus datos y sin
+        # acuse no sabe si el curso ha empezado. En la primera pasada real esto dejó a
+        # un alumno cinco minutos sin respuesta (H1).
+        mensaje = generar_borrador(
+            system,
+            "El copiloto acaba de completar su registro en la Bitácora. Dale la "
+            "bienvenida a bordo en una sola burbuja breve y anúnciale que la misión "
+            "empieza ya. No le pidas ningún dato más.",
+        )
+    return aplicar_voz(mensaje), True

@@ -49,6 +49,11 @@ def curso(monkeypatch):
     doble.estado = None  # UserState | None
 
     monkeypatch.setattr(runner_mod, "get_node_at", lambda o: doble.secuencia.get(o))
+    # `max_order` separa «fin de curso» de «hueco en la secuencia»: por defecto la
+    # secuencia del doble está completa, así que la última posición es su tope.
+    monkeypatch.setattr(
+        runner_mod, "max_order", lambda: max(doble.secuencia) if doble.secuencia else 0
+    )
     monkeypatch.setattr(progress_mod, "get_node", lambda nid: doble.nodos.get(nid))
     monkeypatch.setattr(identify_mod, "get_user_state", lambda p: doble.estado)
     monkeypatch.setattr(progress_mod, "get_user_state", lambda p: doble.estado)
@@ -92,7 +97,11 @@ def test_alumno_nuevo_arranca_en_el_nodo_1(curso):
     curso.send_text.assert_called_once()
     assert "R0-01" in curso.send_text.call_args.kwargs["body"]
     assert final["waiting"] is True
-    curso.set_waiting.assert_called_once_with("+34600111222", True)
+    # Al pausar se persiste también el texto literal que acaba de leer el alumno: es
+    # contra lo que se evaluará su respuesta en el turno siguiente.
+    phone, waiting, pregunta = curso.set_waiting.call_args.args
+    assert (phone, waiting) == ("+34600111222", True)
+    assert pregunta == curso.send_text.call_args.kwargs["body"]
     # Un nodo que pausa NO avanza la posición: sigue pendiente de respuesta.
     curso.advance_position.assert_not_called()
 
@@ -162,6 +171,20 @@ def test_fin_de_curso_cuando_la_posicion_no_existe(curso):
     final = curso.run()
 
     assert final["course_completed"] is True
+    curso.send_text.assert_not_called()
+    curso.advance_position.assert_not_called()
+
+
+def test_un_hueco_en_la_secuencia_no_gradua_al_alumno(curso):
+    """H8: un agujero en la numeración (nodo retirado sin renumerar) tiene la misma
+    pinta que el fin del curso —`get_node_at` devuelve None en ambos casos— y graduaría
+    en silencio a todo el mundo a mitad del curso. Se distinguen por `max_order`."""
+    curso.secuencia = {1: _nodo("R0-01"), 3: _nodo("E0-01")}  # falta la posición 2
+    curso.estado = _estado(current_order=2)
+
+    final = curso.run()
+
+    assert final.get("course_completed") is not True
     curso.send_text.assert_not_called()
     curso.advance_position.assert_not_called()
 

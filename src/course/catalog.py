@@ -85,6 +85,18 @@ def get_node(node_id: str) -> CourseNode | None:
     return _nodes_by_id.get(node_id)
 
 
+def max_order() -> int:
+    """Última posición de la secuencia. 0 si el catálogo está vacío.
+
+    Sirve para distinguir «fin de curso» de «hueco en la secuencia»: sin esto, un
+    agujero en la numeración (p. ej. al retirar un nodo sin renumerar) haría que
+    `get_node_at` devolviera `None` y el curso terminara en silencio a mitad.
+    """
+    _load()
+    assert _order_to_node_id is not None
+    return max(_order_to_node_id) if _order_to_node_id else 0
+
+
 def reset_cache() -> None:
     """Vacía la caché. Solo para tests; en producción la caché es inmutable por contenedor."""
     global _nodes_by_id, _order_to_node_id
