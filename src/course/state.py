@@ -17,12 +17,18 @@ Diferencias con §8 del documento:
 
 from typing import TypedDict
 
+from .models import UserState
+
 
 class CourseState(TypedDict, total=False):
     # identidad
     phone: str
     phone_number_id: str
     status: str  # "nuevo" | "registrado"
+    # Estado persistido, cargado UNA vez en identify_user. Sin esto, cada nodo de texto
+    # repetiría el GetItem para construir el system prompt (hasta 10 por invocación).
+    # Se puede guardar el objeto tal cual porque este grafo no usa checkpointer.
+    user: UserState | None
     # posición (espejo de CourseStateTable durante la invocación)
     current_order: int
     last_node_id: str | None

@@ -1,15 +1,18 @@
-"""Nodo `check_progress`: consume la respuesta del alumno y reanuda la secuencia.
+"""Nodo `check_progress`: evalúa la respuesta del alumno y decide si el curso avanza.
 
-Es el punto donde el curso sale de una pausa. En F3 **cualquier respuesta avanza**: la
-evaluación (feedback socrático, escalada de pistas, extracción del perfil de `R0-01`)
-llega en F4 y se enchufa aquí, entre consumir la respuesta y avanzar.
+Es el punto donde el curso sale de una pausa. La decisión de avanzar NO es del alumno
+por el mero hecho de contestar: la toma `evaluate.py` según el `eval_type` del nodo.
+Un ejercicio `strict` sin resolver mantiene la posición y escala pistas.
 """
 
+from shared.kapso_client import send_text
 from shared.observability import logger
+from shared.whatsapp_format import format_for_whatsapp
 
 from ..catalog import get_node
-from ..repository import PositionConflict, advance_position, get_user_state
+from ..repository import PositionConflict, advance_position, get_user_state, reset_attempts
 from ..state import CourseState
+from .evaluate import evaluar
 
 
 def check_progress(state: CourseState) -> CourseState:
@@ -23,16 +26,34 @@ def check_progress(state: CourseState) -> CourseState:
         return {"continue_flag": True}
 
     nodo = get_node(state["last_node_id"]) if state.get("last_node_id") else None
-
-    if nodo is not None and nodo.eval_type == "register":
-        # TODO F4: extraer student_name / adult_name / adult_email / adult_phone de la
-        # respuesta y persistirlos con el LLM. Hasta entonces el perfil queda vacío y el
-        # alumno avanza igual: R0-01 es el nodo 1 y bloquear aquí dejaría el curso muerto.
+    if nodo is None:
+        # Estado inconsistente (nodo retirado del catálogo entre dos mensajes): se
+        # avanza para no dejar al alumno atascado en una pausa sin nodo.
         logger.warning(
-            "Respuesta de registro sin extracción de perfil (pendiente de F4)",
-            extra={"node_id": nodo.node_id},
+            "Pausa sin nodo en el catálogo",
+            extra={"last_node_id": state.get("last_node_id")},
         )
+        return _avanzar(state, phone, order)
 
+    mensaje, avanza = evaluar(nodo, state.get("student_answer", ""), get_user_state(phone), phone)
+
+    enviados = state.get("sent_count", 0)
+    if mensaje and mensaje.strip():
+        send_text(state["phone_number_id"], to=phone, body=format_for_whatsapp(mensaje))
+        enviados += 1
+
+    if not avanza:
+        # Sigue pendiente del mismo nodo: la posición no se mueve y la invocación
+        # termina aquí (route_sequence ve waiting=True).
+        return {"waiting": True, "continue_flag": False, "sent_count": enviados}
+
+    resultado = _avanzar(state, phone, order)
+    resultado["sent_count"] = enviados
+    return resultado
+
+
+def _avanzar(state: CourseState, phone: str, order: int) -> CourseState:
+    """Consume la pausa: avanza la posición y reinicia el contador de intentos."""
     try:
         advance_position(
             phone,
@@ -53,4 +74,5 @@ def check_progress(state: CourseState) -> CourseState:
             "continue_flag": not actual.waiting,
         }
 
+    reset_attempts(phone)
     return {"current_order": order + 1, "waiting": False, "continue_flag": True}

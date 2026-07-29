@@ -53,6 +53,15 @@ def curso(monkeypatch):
     monkeypatch.setattr(identify_mod, "get_user_state", lambda p: doble.estado)
     monkeypatch.setattr(progress_mod, "get_user_state", lambda p: doble.estado)
 
+    # LLM y voz: el contenido real se prueba en test_course_evaluate.py. Aquí solo
+    # interesa el recorrido del grafo, así que el texto generado es determinista.
+    monkeypatch.setattr(runner_mod, "generar_borrador", lambda s, i: f"borrador: {i}")
+    monkeypatch.setattr(runner_mod, "aplicar_voz", lambda b: b)
+    monkeypatch.setattr(progress_mod, "evaluar", doble.evaluar)
+    doble.evaluar.return_value = (None, True)  # por defecto: avanza sin decir nada
+    monkeypatch.setattr(progress_mod, "reset_attempts", doble.reset_attempts)
+    monkeypatch.setattr(progress_mod, "send_text", doble.send_text)
+
     monkeypatch.setattr(runner_mod, "send_text", doble.send_text)
     monkeypatch.setattr(runner_mod, "send_media", doble.send_media)
     monkeypatch.setattr(advance_mod, "set_waiting", doble.set_waiting)

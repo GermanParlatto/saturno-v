@@ -37,7 +37,12 @@ class CourseNode(BaseModel):
     description: str = ""
     # Derivados por el seeder:
     eval_type: EvalType | None = None
-    eval_instruction: str | None = None  # se separa de `description` en pasada posterior
+    # Qué debe hacer el LLM con la respuesta. En los nodos `-02` sale de su propia
+    # `description`, que ya está redactada como instrucción.
+    eval_instruction: str | None = None
+    # La pregunta que este nodo evalúa: la `description` de su hermano `-01`. Sin ella
+    # el evaluador juzgaría «si el comando está bien escrito» sin saber cuál se pidió.
+    question: str | None = None
     output: str | None = None
     logic: str | None = None  # se conserva como nota editorial humana
     file_url: str | None = None
@@ -60,6 +65,9 @@ class UserState(BaseModel):
     rango: str | None = None
     nivel_actual: str | None = None
     medalla_contador: int = 0
+    # nodos cerrados sin superar tras agotar la escalada de pistas (4+ intentos).
+    # No se entrega la solución: se anotan para repasarlos más adelante.
+    review_nodes: list[str] = []
     # posición en el curso
     current_order: int = 0
     last_node_id: str | None = None

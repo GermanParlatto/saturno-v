@@ -36,6 +36,7 @@ Al cambiar una derivación o un texto, SUBIR `CATALOG_VERSION` en el mismo commi
 import argparse
 import csv
 import os
+import re
 import sys
 import unicodedata
 from datetime import UTC, datetime
@@ -52,7 +53,9 @@ FLOW_CSV = DATA_DIR / "tb_flow_sequence.csv"
 #   1 → siembra inicial (F1)
 #   2 → R0-01 pasa a eval_type="register" + eval_instruction de extracción de perfil
 #   3 → F2: los gifs (R0-02, E1-05) se sirven como PNG -> media_kind "image", no "video"
-CATALOG_VERSION = 3
+#   4 → F4: eval_instruction derivado en los 13 nodos -02 + `question` (la pregunta que
+#           planteó su hermano -01, sin la cual el evaluador juzga a ciegas)
+CATALOG_VERSION = 4
 
 # tb_nodes.type -> media_kind (tipo Meta).
 #
@@ -116,10 +119,47 @@ def derive_sends_content(pauses: bool, eval_type: str | None) -> bool:
     return not (pauses and eval_type in ("open", "strict"))
 
 
+# El curso usa un patrón regular de tres nodos por interacción:
+#
+#   E1-08      contenido (vídeo/cómic), no pausa
+#   E1-08-01   LA PREGUNTA («…que ahora escriba su nombre»), no pausa
+#   E1-08-02   LA EVALUACIÓN («Evalúa si el comando está bien escrito»), PAUSA
+#
+# Verificado sobre los 70 nodos: los 13 `XX-NN-02` tienen su `-01`, va inmediatamente
+# antes en la secuencia, y ese `-01` nunca pausa.
+_NODO_EVALUACION = re.compile(r"^(?P<base>[A-Z0-9]+-\d+)-02$")
+
+
+def derive_eval_instruction(node_id: str, description: str) -> str | None:
+    """Instrucción para el LLM evaluador.
+
+    En los nodos `-02` la `description` YA está redactada como instrucción («Evalúa
+    si…», «Interpreta la respuesta y refuerza…»), así que promocionarla al campo
+    dedicado es mover un dato, no redactar uno nuevo. `EVAL_INSTRUCTIONS` tiene
+    precedencia para poder afinar un nodo sin tocar el CSV.
+    """
+    if node_id in EVAL_INSTRUCTIONS:
+        return EVAL_INSTRUCTIONS[node_id]
+    if _NODO_EVALUACION.match(node_id):
+        return (description or "").strip() or None
+    return None
+
+
+def derive_question(node_id: str, descripciones: dict[str, str]) -> str | None:
+    """La pregunta que el nodo `-02` está evaluando: la `description` de su `-01`.
+
+    Sin esto el evaluador juzga a ciegas — recibe «evalúa si el comando está bien
+    escrito» sin saber QUÉ comando se pidió.
+    """
+    match = _NODO_EVALUACION.match(node_id)
+    if not match:
+        return None
+    return (descripciones.get(f"{match['base']}-01") or "").strip() or None
+
+
 # Instrucciones para el LLM, separadas de `description` (que es contenido a enviar).
-# Los CSV de origen no distinguen ambos usos, así que la separación se hace aquí, a
-# mano y revisable, en vez de derivarse. Solo los nodos presentes en este dict llevan
-# `eval_instruction`; el resto queda pendiente de la pasada editorial de F4.
+# Solo para nodos que NO siguen el patrón `-02` o que necesitan un texto distinto del
+# de su `description`. Hoy solo R0-01, que es un alta, no una evaluación.
 EVAL_INSTRUCTIONS = {
     "R0-01": (
         "Extrae de la respuesta del usuario estos cuatro campos: student_name (nombre "
@@ -133,14 +173,21 @@ EVAL_INSTRUCTIONS = {
 }
 
 
-def _row_to_item(row: dict, pk_course: str) -> tuple[dict, dict]:
-    """Convierte una fila del CSV en el ítem DynamoDB + un resumen para el informe."""
+def _row_to_item(row: dict, descripciones: dict[str, str]) -> tuple[dict, dict]:
+    """Convierte una fila del CSV en el ítem DynamoDB + un resumen para el informe.
+
+    `descripciones` mapea node_id -> description de TODAS las filas: hace falta para
+    derivar la pregunta de un `-02` desde su hermano `-01`.
+    """
     node_id = row["id"].strip()
     type_ = (row["type"] or "").strip()
+    description = (row.get("description") or "").strip()
     pauses = _parse_bool(row["pauses"])
     eval_type = derive_eval_type(row.get("Logic", ""), pauses)
     sends_content = derive_sends_content(pauses, eval_type)
     media_kind = MEDIA_KIND.get(type_)
+    eval_instruction = derive_eval_instruction(node_id, description)
+    question = derive_question(node_id, descripciones)
 
     item = {
         "PK": f"NODE#{node_id}",
@@ -152,14 +199,15 @@ def _row_to_item(row: dict, pk_course: str) -> tuple[dict, dict]:
     }
     optional = {
         "function": (row.get("function") or "").strip(),
-        "description": (row.get("description") or "").strip(),
+        "description": description,
         "output": (row.get("Output") or "").strip(),
         "logic": (row.get("Logic") or "").strip(),
         "file_url": (row.get("file_url") or "").strip(),
         "eval_type": eval_type,
         "media_kind": media_kind,
-        # Solo los nodos de EVAL_INSTRUCTIONS; el resto, pendiente de la pasada de F4.
-        "eval_instruction": EVAL_INSTRUCTIONS.get(node_id),
+        "eval_instruction": eval_instruction,
+        # La pregunta que este nodo evalúa (viene de su hermano -01).
+        "question": question,
     }
     for k, v in optional.items():
         if v not in (None, ""):
@@ -172,6 +220,8 @@ def _row_to_item(row: dict, pk_course: str) -> tuple[dict, dict]:
         "eval_type": eval_type,
         "sends_content": sends_content,
         "media_kind": media_kind,
+        "eval_instruction": eval_instruction,
+        "question": question,
     }
     return item, summary
 
@@ -200,12 +250,17 @@ def print_report(summaries: list[dict], nodes: list[dict], flow: list[dict]) -> 
     ambiguous = [s["node_id"] for s in summaries if s["pauses"] and s["eval_type"] is None]
     acks = [s["node_id"] for s in summaries if s["eval_type"] == "ack"]
     registers = [s["node_id"] for s in summaries if s["eval_type"] == "register"]
-    # Nodos que evalúan pero aún sin instrucción propia: usarán `description` como
-    # fallback en F4. Es el TODO editorial pendiente, aquí cuantificado.
+    # Los dos deben salir a CERO. Si no, el CSV rompió el patrón de tres nodos y la
+    # evaluación se haría a ciegas (sin saber qué se preguntó) o sin instrucción.
     sin_instruccion = [
         s["node_id"]
         for s in summaries
-        if s["eval_type"] in ("open", "strict") and s["node_id"] not in EVAL_INSTRUCTIONS
+        if s["eval_type"] in ("open", "strict") and not s["eval_instruction"]
+    ]
+    sin_pregunta = [
+        s["node_id"]
+        for s in summaries
+        if s["eval_type"] in ("open", "strict") and not s["question"]
     ]
     orphan_defs = sorted(node_ids - flow_ids)  # definidos pero fuera de la secuencia
     missing_defs = sorted(flow_ids - node_ids)  # en la secuencia pero sin definición
@@ -214,7 +269,8 @@ def print_report(summaries: list[dict], nodes: list[dict], flow: list[dict]) -> 
     print(f"Pausan SIN eval_type (revisar): {ambiguous or '—'}  <-- caerían en el else")
     print(f"eval_type=register (alta):      {registers or '—'}")
     print(f"eval_type=ack (acuse simple):   {acks or '—'}")
-    print(f"Evalúan SIN eval_instruction:   {len(sin_instruccion)} nodos (fallback a description)")
+    print(f"Evalúan SIN eval_instruction:   {sin_instruccion or '—'}  <-- debe ser —")
+    print(f"Evalúan SIN pregunta derivada:  {sin_pregunta or '—'}  <-- debe ser —")
     print(f"Nodos definidos NO en secuencia: {orphan_defs or '—'}")
     print(f"Nodos en secuencia SIN definir:  {missing_defs or '—'}  <-- ¡romperían el curso!")
 
@@ -249,10 +305,16 @@ def seed(table_name: str, course_id: str, dry_run: bool, force: bool = False) ->
     items: list[dict] = []
     summaries: list[dict] = []
 
+    # Índice previo: derivar la pregunta de un `-02` exige leer la description de su
+    # `-01`, que puede estar en cualquier posición del CSV.
+    descripciones = {
+        (r.get("id") or "").strip(): (r.get("description") or "").strip() for r in nodes
+    }
+
     for row in nodes:
         if not (row.get("id") or "").strip():
             continue
-        item, summary = _row_to_item(row, course_id)
+        item, summary = _row_to_item(row, descripciones)
         items.append(item)
         summaries.append(summary)
 

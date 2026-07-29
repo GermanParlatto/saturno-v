@@ -125,3 +125,41 @@ def reset_attempts(phone: str) -> None:
         UpdateExpression="SET attempts = :zero, updated_at = :now",
         ExpressionAttributeValues={":zero": 0, ":now": _now()},
     )
+
+
+def update_profile(phone: str, **campos) -> None:
+    """Guarda los datos de perfil extraídos de la respuesta a `R0-01`.
+
+    Se escriben solo los campos con valor: el alta puede llegar incompleta y una
+    segunda respuesta completa lo que faltaba, sin pisar lo ya guardado con `None`.
+
+    Estos son datos de contacto de un adulto responsable de un menor. La tabla tiene
+    SSE activado y el worker no loguea el texto de entrada (ver F0).
+    """
+    presentes = {k: v for k, v in campos.items() if v not in (None, "")}
+    if not presentes:
+        return
+    sets = ", ".join(f"{k} = :{k}" for k in presentes)
+    valores = {f":{k}": v for k, v in presentes.items()}
+    valores[":now"] = _now()
+    _table().update_item(
+        Key=_key(phone),
+        UpdateExpression=f"SET {sets}, updated_at = :now, last_interaction_at = :now",
+        ExpressionAttributeValues=valores,
+    )
+
+
+def mark_for_review(phone: str, node_id: str) -> None:
+    """Anota un nodo cerrado sin superar, para repasarlo más adelante.
+
+    `list_append` sobre una lista que puede no existir: `if_not_exists` la inicializa
+    vacía en el mismo UpdateExpression, así no hace falta leer antes de escribir.
+    """
+    _table().update_item(
+        Key=_key(phone),
+        UpdateExpression=(
+            "SET review_nodes = list_append(if_not_exists(review_nodes, :vacia), :nodo), "
+            "updated_at = :now"
+        ),
+        ExpressionAttributeValues={":vacia": [], ":nodo": [node_id], ":now": _now()},
+    )

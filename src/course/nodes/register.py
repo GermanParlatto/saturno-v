@@ -17,7 +17,7 @@ def register(state: CourseState) -> CourseState:
     phone = state["phone"]
     try:
         creado = create_user(phone)
-        return {"current_order": creado.current_order, "waiting": False}
+        return {"current_order": creado.current_order, "waiting": False, "user": creado}
     except PositionConflict:
         # Carrera: dos mensajes del mismo número entraron a la vez y otro worker ya
         # dio de alta al alumno. No es un error — se sigue con lo que haya en la tabla.
@@ -31,4 +31,5 @@ def register(state: CourseState) -> CourseState:
             "current_order": existente.current_order,
             "waiting": existente.waiting,
             "last_node_id": existente.last_node_id,
+            "user": existente,
         }
