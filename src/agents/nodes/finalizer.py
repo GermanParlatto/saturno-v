@@ -7,8 +7,6 @@ usuario recibe una respuesta correcta aunque sin personaje. Nunca rompemos
 el pipeline por esto.
 """
 
-import re
-
 from aws_lambda_powertools.metrics import MetricUnit
 from langchain_core.messages import AIMessage, RemoveMessage
 
@@ -16,28 +14,7 @@ from agents.prompts import REWRITE_INSTRUCTION, SPOKY_SYSTEM
 from agents.state import AgentState
 from shared import spoky_client
 from shared.observability import logger, metrics
-
-MAX_TOKENS = 200
-TEMPERATURE = 0.6
-
-# Fragmentos de código a preservar: bloques ```...``` e inline `...`. Se usa
-# para la comprobación de integridad, no para renderizado (whatsapp_format.py
-# ya cubre eso con más matices); aquí sólo importa detectar qué texto entre
-# comillas invertidas existía en el borrador y verificar que sigue presente.
-_CODE_SPAN = re.compile(r"```.*?```|`[^`\n]+`", re.DOTALL)
-
-
-def _codigo_preservado(borrador: str, final: str) -> bool:
-    """True si todo fragmento de código del borrador sigue en la reescritura.
-
-    El LoRA se entrenó para RESPONDER, no para reescribir: es una tarea fuera
-    de distribución y un modelo de 2B puede alterar identificadores o
-    sangría al reformular. Esta comprobación convierte ese fallo (código roto
-    enviado a un niño) de silencioso a seguro: si falta algún fragmento, se
-    descarta la reescritura y se usa el borrador.
-    """
-    fragmentos = _CODE_SPAN.findall(borrador)
-    return all(frag in final for frag in fragmentos)
+from shared.voice import MAX_TOKENS, TEMPERATURE, codigo_preservado
 
 
 def finalizer(state: AgentState) -> dict:
@@ -72,7 +49,7 @@ def finalizer(state: AgentState) -> dict:
         metrics.add_metric(name="FinalizerFallback", unit=MetricUnit.Count, value=1)
         return {}
 
-    if not _codigo_preservado(borrador, final):
+    if not codigo_preservado(borrador, final):
         logger.warning("Finalizador alteró el código: se envía el borrador")
         metrics.add_metric(name="FinalizerCodigoAlterado", unit=MetricUnit.Count, value=1)
         return {}

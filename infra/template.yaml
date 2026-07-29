@@ -313,6 +313,11 @@ Resources:
           KAPSO_API_KEY: !Ref KapsoApiKey
           MODEL_ID: !Ref ModelId
           CHECKPOINT_TABLE: !Ref CheckpointTable
+          # Voz de Spoky (shared/voice.py). Los parámetros existían desde la fase del
+          # finalizador pero no se cableaban a ninguna función: sin ellos, cada mensaje
+          # lanza SpokyConfigError y el curso sale con el borrador, sin personaje.
+          SPOKY_ENDPOINT_URL: !Ref SpokyEndpointUrl
+          SPOKY_API_TOKEN: !Ref SpokyApiToken
           # Motor de curso: course/catalog.py y course/repository.py leen estas tres.
           # Sin ellas el worker revienta con KeyError en cuanto se cablee run_course().
           CATALOG_TABLE: !Ref CourseCatalogTable

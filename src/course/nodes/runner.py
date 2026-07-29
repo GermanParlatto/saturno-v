@@ -14,9 +14,12 @@ import time
 
 from shared.kapso_client import MEDIA_KINDS, send_media, send_text
 from shared.observability import logger
+from shared.voice import aplicar_voz
 from shared.whatsapp_format import format_for_whatsapp
 
 from ..catalog import get_node_at
+from ..llm import generar_borrador
+from ..prompts import system_prompt
 from ..state import CourseState
 
 
@@ -70,12 +73,23 @@ def _enviar(state: CourseState, nodo) -> None:
         logger.info("Media enviada", extra={"node_id": nodo.node_id, "kind": nodo.media_kind})
         return
 
-    # TODO F4: aquí `description` se envía tal cual. En F4 pasa por el LLM con el system
-    # prompt de docs/07 para que salga en la voz de Spoky.
-    texto = format_for_whatsapp(nodo.description)
-    if not texto.strip():
+    if not (nodo.description or "").strip():
         # Un nodo sin contenido enviable no es motivo para abortar la cadena: se salta.
         logger.warning("Nodo sin contenido que enviar", extra={"node_id": nodo.node_id})
+        return
+
+    # `description` es una INSTRUCCIÓN de guion («Indica que print es la forma de
+    # comunicarse»), no el texto a enviar: mandarla tal cual sería enviarle al alumno
+    # la nota del guionista. Se genera el contenido y se le pone la voz de Spoky.
+    borrador = generar_borrador(
+        system_prompt(state.get("user"), nodo),
+        f"Dirígete a tu copiloto para esta parte de la misión: «{nodo.description}»\n\n"
+        "Es contenido nuevo, no una corrección: no evalúes nada ni preguntes por una "
+        "respuesta anterior.",
+    )
+    texto = format_for_whatsapp(aplicar_voz(borrador))
+    if not texto.strip():
+        logger.warning("Generación vacía para el nodo", extra={"node_id": nodo.node_id})
         return
     send_text(phone_number_id, to=to, body=texto)
     logger.info("Texto enviado", extra={"node_id": nodo.node_id})
