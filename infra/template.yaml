@@ -32,6 +32,12 @@ Parameters:
     NoEcho: true
     MinLength: 1
     Description: Token de Hugging Face para el endpoint de Spoky
+  CourseId:
+    Type: String
+    Default: waku-l0
+    # Tampoco es un secreto. Sale al FLOW#<curso> de CourseCatalogTable: el mismo
+    # valor que usa tools/seed-course.py --course al sembrar la secuencia.
+    Description: Identificador del curso que sirve el motor (una sola instancia por stack)
   DbName:
     Type: String
     Default: waku
@@ -307,6 +313,11 @@ Resources:
           KAPSO_API_KEY: !Ref KapsoApiKey
           MODEL_ID: !Ref ModelId
           CHECKPOINT_TABLE: !Ref CheckpointTable
+          # Motor de curso: course/catalog.py y course/repository.py leen estas tres.
+          # Sin ellas el worker revienta con KeyError en cuanto se cablee run_course().
+          CATALOG_TABLE: !Ref CourseCatalogTable
+          COURSE_STATE_TABLE: !Ref CourseStateTable
+          COURSE_ID: !Ref CourseId
           LANGSMITH_TRACING: "true"
           LANGSMITH_API_KEY: !Ref LangsmithApiKey
           LANGSMITH_PROJECT: spoky-bot
