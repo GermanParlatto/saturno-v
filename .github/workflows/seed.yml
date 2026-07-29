@@ -1,13 +1,20 @@
 name: seed
 
-# Siembra el catálogo del curso (CourseCatalogTable) tras un deploy exitoso.
+# Siembra / migra el catálogo del curso (CourseCatalogTable) tras un deploy exitoso.
 #
-# Guardado e idempotente: si la tabla ya tiene ítems NO hace nada. Solo se siembra
-# CourseCatalogTable; CourseStateTable es estado por alumno y nunca se siembra.
+# Idempotente POR VERSIÓN: el seeder compara `CATALOG_VERSION` (código) con el ítem
+# de control `CATALOG#<curso>/VERSION` (tabla). Si coinciden no escribe nada; si
+# difieren, re-siembra el catálogo entero. La decisión vive en el seeder, no en este
+# YAML. Solo se siembra CourseCatalogTable; CourseStateTable es estado por alumno y
+# no se toca nunca.
+#
+# Antes había una guarda "si la tabla tiene ítems, no toques nada": congelaba el
+# catálogo para siempre tras la primera siembra, así que ninguna corrección de las
+# derivaciones habría llegado nunca a producción.
 #
 # El rol OIDC (AWS_DEPLOY_ROLE_ARN) necesita, además de lo que ya usa el deploy:
 #   - cloudformation:DescribeStackResource   (resolver el nombre físico de la tabla)
-#   - dynamodb:Scan                          (comprobar si ya está poblada)
+#   - dynamodb:GetItem                       (leer la versión sembrada)
 #   - dynamodb:BatchWriteItem                (escribir el catálogo)
 # sobre CourseCatalogTable. Si el rol de deploy no los incluye, este workflow fallará
 # con AccessDenied y habrá que ampliar su policy en la cuenta AWS.
@@ -99,25 +106,28 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "CourseCatalogTable = $NAME"
 
-      # Guarda de idempotencia: ~140 ítems caben en una página de scan, así que
-      # Count es exacto. Si ya hay datos, no se reescribe.
-      - name: ¿Ya está sembrada?
+      # Informativo: deja en el log si esta ejecución va a migrar o no, ANTES de
+      # escribir. Exit 3 = hay migración pendiente; no es un fallo, por eso se
+      # neutraliza con `|| true` y se decide mirando el código de salida.
+      - name: ¿Hay migración de catálogo pendiente?
         id: check
         run: |
-          COUNT=$(aws dynamodb scan \
-            --table-name "${{ steps.table.outputs.name }}" \
-            --select COUNT --region "$AWS_REGION" \
-            --query 'Count' --output text)
-          echo "Ítems actuales en la tabla: $COUNT"
-          if [ "$COUNT" -gt 0 ]; then
-            echo "seeded=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Catálogo ya poblado ($COUNT ítems); se omite el seed."
-          else
-            echo "seeded=false" >> "$GITHUB_OUTPUT"
-          fi
+          set +e
+          OUT=$(uv run python tools/seed-course.py \
+            --table "${{ steps.table.outputs.name }}" \
+            --course "$COURSE_ID" --check)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          case "$CODE" in
+            0) echo "::notice::Catálogo al día; el seeder no escribirá nada." ;;
+            3) echo "::notice::Versión distinta: se re-sembrará el catálogo." ;;
+            *) echo "::error::Fallo comprobando la versión del catálogo (exit $CODE)"; exit "$CODE" ;;
+          esac
 
-      - name: Sembrar catálogo
-        if: steps.check.outputs.seeded == 'false'
+      # Se llama SIEMPRE: el propio seeder decide si escribe. Un paso, sin `if:`,
+      # sin que el YAML duplique la lógica de versiones.
+      - name: Sembrar / migrar catálogo
         run: |
           uv run python tools/seed-course.py \
             --table "${{ steps.table.outputs.name }}" \

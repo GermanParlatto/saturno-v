@@ -32,6 +32,12 @@ Parameters:
     NoEcho: true
     MinLength: 1
     Description: Token de Hugging Face para el endpoint de Spoky
+  CourseId:
+    Type: String
+    Default: waku-l0
+    # Tampoco es un secreto. Sale al FLOW#<curso> de CourseCatalogTable: el mismo
+    # valor que usa tools/seed-course.py --course al sembrar la secuencia.
+    Description: Identificador del curso que sirve el motor (una sola instancia por stack)
   DbName:
     Type: String
     Default: waku
@@ -307,6 +313,18 @@ Resources:
           KAPSO_API_KEY: !Ref KapsoApiKey
           MODEL_ID: !Ref ModelId
           CHECKPOINT_TABLE: !Ref CheckpointTable
+          # Motor de curso: course/catalog.py y course/repository.py leen estas tres.
+          # Sin ellas el worker revienta con KeyError en cuanto se cablee run_course().
+          CATALOG_TABLE: !Ref CourseCatalogTable
+          COURSE_STATE_TABLE: !Ref CourseStateTable
+          COURSE_ID: !Ref CourseId
+          # El motor se auto-encola la continuación cuando una cadena de nodos supera
+          # MAX_NODES_PER_INVOCATION, en vez de agotar el Timeout de 120s.
+          QUEUE_URL: !Ref IncomingQueue
+          # Ráfaga: entre E1-01 y E1-08 hay 7 nodos pauses=false seguidos. Sin pausa
+          # llegarían 7 vídeos y cómics en menos de un segundo.
+          INTER_MESSAGE_DELAY_MS: "1500"
+          MAX_NODES_PER_INVOCATION: "10"
           LANGSMITH_TRACING: "true"
           LANGSMITH_API_KEY: !Ref LangsmithApiKey
           LANGSMITH_PROJECT: spoky-bot
@@ -347,6 +365,9 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:Query
               Resource: !GetAtt CourseStateTable.Arn
+        # El worker se re-encola a sí mismo la continuación de una cadena larga.
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt IncomingQueue.QueueName
         - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
       Events:
         FromQueue:

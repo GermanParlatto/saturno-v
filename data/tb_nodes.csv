@@ -1,7 +1,7 @@
 ﻿id,type,function,pauses,description,Output,Logic,file_url
 R0-01,image,INT,TRUE,"Información del Proyecto Waku Code ! Un proyecto educativo dirigido a niños(as) de 10 a 14 años, que busca enseñar Python, por medio de la historia de Spoky. Menciona que se debe dar autorización de un Adulto Nombre Completo, Correo Electronico y Telefono y el nombre del estudiante, que al continuar estan autorizando las politicas y el almacenamiento de los datos.",image,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/R0-01.png
 R0-02,gif,MOT,TRUE,Nombre registrado — Spoky graba en la Bitácora con solemnidad cómica,No Apply,"Si - Nada
-No - Mensaje de agradecimiento",https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/R0-02.gif
+No - Mensaje de agradecimiento",https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/R0-02.png
 E0-01,comic,NAR,FALSE,"La señal — la Waku-Go estrellada, Spoky enciende el Radar de Potencial, barre el planeta y se detiene en el alumno: Te encontré",comic,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E0-01.png
 E0-02,video,NAR,FALSE,"Transmisión de Spoky — explica quién es, de dónde viene y por qué necesita un copiloto; cierra con ¿Aceptas la misión?",video,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E0-02.mp4
 E0-02-01,message,INT,TRUE,"Evalua la respuesta del usuario, (emoji, audio, sticker).",[message],"Si - Nada
@@ -12,7 +12,7 @@ E1-01-02,message,INT,TRUE,"Refuerza el interes del usuario, haciendo un comentar
 E1-02,image,PED,FALSE,"Ruta Estelar = Algoritmo — mapa estelar con pasos numerados: pasos exactos, en orden",image,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E1-02.png
 E1-03,video,PED,FALSE,"¿Qué es un algoritmo? — una Ruta Estelar mal ordenada llevó a Spoky al planeta equivocado. Ancla: algoritmo = pasos exactos, en orden",video,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E1-03.mp4
 E1-04,comic,PED,FALSE,El Manual de Emergencia — la nave sigue las instrucciones al pie de la letra y el resultado es absurdo,comic,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E1-04.png
-E1-05,gif,HUM,FALSE,La nave obedece al pie de la letra — Spoky con cara de qué hice mientras la nave hace algo absurdo,gif,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E1-05.gif
+E1-05,gif,HUM,FALSE,La nave obedece al pie de la letra — Spoky con cara de qué hice mientras la nave hace algo absurdo,gif,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E1-05.png
 E1-05-01,message,INT,FALSE,"Le pide al humano que escriba los pasos exactos para hacer un Sandwich, presentando el gif de 01-05.",message + gif,,
 E1-05-02,message,INT,TRUE,Analiza los pasos del usuario y hace un comentario evaluando el proceso logico del Sandwich. Y comparte el video de YouTube.,message,"No existe un criterio de exito para la respuesta, se interpreta y se da el feedback.",
 E1-06,comic,PED,FALSE,"La gramática estelar — Spoky escribe una orden con un símbolo de más, la nave da ERROR, corrige y entiende. Los pilotos lo llaman sintaxis",comic,,https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets/E1-06.png

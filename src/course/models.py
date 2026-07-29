@@ -17,10 +17,16 @@ from pydantic import BaseModel
 
 # Enum de evaluación. Sustituye al parseo por substring de `logic` (español con tildes)
 # que el documento v2 hacía en runtime: aquí es un dato limpio derivado offline.
-#   open   → interpreta y comenta, siempre avanza (no hay respuesta correcta)
-#   strict → verifica un criterio (p. ej. sintaxis) y da feedback
-#   ack    → acuse simple (Si/No), sin evaluación socrática
-EvalType = Literal["open", "strict", "ack"]
+#   open     → interpreta y comenta, siempre avanza (no hay respuesta correcta)
+#   strict   → verifica un criterio (p. ej. sintaxis) y da feedback
+#   ack      → acuse simple (Si/No), sin evaluación socrática
+#   register → NO evalúa: extrae campos de perfil de la respuesta y los persiste.
+#              Único caso hoy: R0-01, la posición 1 de la secuencia. Pausa como los
+#              demás, pero lo que llega es un formulario en texto libre (nombre del
+#              alumno + nombre/correo/teléfono del adulto), no un intento de ejercicio.
+#              Sin esta rama, el primer mensaje de TODO alumno nuevo cae en un `else`
+#              sin destino. Ver el TODO de F3 en claude/PLAN-course-engine.md.
+EvalType = Literal["open", "strict", "ack", "register"]
 
 
 class CourseNode(BaseModel):
