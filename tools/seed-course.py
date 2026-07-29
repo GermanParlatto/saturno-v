@@ -51,15 +51,25 @@ FLOW_CSV = DATA_DIR / "tb_flow_sequence.csv"
 # Subir SIEMPRE que cambien los CSV, las derivaciones o EVAL_INSTRUCTIONS.
 #   1 → siembra inicial (F1)
 #   2 → R0-01 pasa a eval_type="register" + eval_instruction de extracción de perfil
-CATALOG_VERSION = 2
+#   3 → F2: los gifs (R0-02, E1-05) se sirven como PNG -> media_kind "image", no "video"
+CATALOG_VERSION = 3
 
-# tb_nodes.type -> media_kind (tipo Meta). Meta NO tiene tipo `gif`: un .gif se entrega
-# como video/mp4 (verificar el formato real de R0-02 en Contabo, ver F2).
+# tb_nodes.type -> media_kind (tipo Meta).
+#
+# `gif` -> `image`: la Cloud API de Meta no acepta el formato .gif en NINGÚN tipo
+# (`image` admite jpeg/png, `video` admite mp4/3gpp). Los dos gifs del curso (R0-02,
+# nodo 2 de la secuencia, y E1-05) se sirven como PNG estático; `file_url` en
+# data/tb_nodes.csv ya apunta a .png. El `type` se conserva en `gif` porque es la verdad
+# editorial del nodo: lo que cambia es cómo se entrega, y eso es lo que expresa media_kind.
+#
+# `cheatsheet` -> `document`: PENDIENTE de la prueba real. Los 5 cheatsheets son .png, así
+# que como `document` llegan de adjunto descargable en vez de verse en el chat. Cambiarlo
+# a `image` es esta línea + un bump de CATALOG_VERSION.
 MEDIA_KIND = {
     "comic": "image",
     "image": "image",
     "video": "video",
-    "gif": "video",
+    "gif": "image",
     "cheatsheet": "document",
     "message": "text",
 }
