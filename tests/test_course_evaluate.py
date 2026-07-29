@@ -251,3 +251,113 @@ def test_nodo_que_pausa_sin_eval_type_no_bloquea(llm):
     _, avanza = evaluate.evaluar(_nodo(None), "algo", ESTADO, "+34600111222")
 
     assert avanza is True
+
+
+# ── correcciones de la primera pasada real (claude/PLAN-fix-flujo-real.md) ──────────
+
+
+def test_register_se_completa_en_dos_turnos(llm):
+    """H6: el alumno reparte los datos en varios mensajes — que es lo que hace un niño de
+    10-14 años, y lo que la propia instrucción del catálogo le permite. Lo que falta se
+    mide sobre el perfil ACUMULADO; mirando solo la extracción del turno el alta no se
+    completaría nunca y el curso quedaría atascado en el nodo 1."""
+    # Primer turno: llegaron tres campos y ya están guardados en el estado.
+    ya_guardado = UserState(
+        phone="+34600111222",
+        current_order=1,
+        student_name="Ana",
+        adult_name="Laura Pérez",
+        adult_email="laura@example.com",
+    )
+    # Segundo turno: el alumno manda SOLO el teléfono que le faltaba.
+    llm.json = {
+        "student_name": None,
+        "adult_name": None,
+        "adult_email": None,
+        "adult_phone": "+34600222333",
+        "faltan": [],
+        "mensaje": "¡Ya estamos! Bienvenida a bordo",
+    }
+
+    mensaje, avanza = evaluate.evaluar(
+        _nodo("register", node_id="R0-01"), "600222333", ya_guardado, "+34600111222"
+    )
+
+    assert avanza is True
+    assert "Bienvenida" in mensaje
+    # No se pisa lo ya guardado con los None de esta extracción.
+    assert llm.update_profile.call_args.kwargs == {
+        "student_name": None,
+        "adult_name": None,
+        "adult_email": None,
+        "adult_phone": "+34600222333",
+    }
+
+
+def test_register_incompleto_aunque_el_estado_traiga_parte(llm):
+    """El contrapunto del anterior: acumular no puede dar por bueno un alta a la que
+    todavía le falta un campo en ambos sitios."""
+    ya_guardado = UserState(phone="+34600111222", current_order=1, student_name="Ana")
+    llm.json = {
+        "student_name": None,
+        "adult_name": "Laura Pérez",
+        "adult_email": None,
+        "adult_phone": None,
+        "faltan": ["adult_email", "adult_phone"],
+        "mensaje": "Me falta el correo y el teléfono",
+    }
+
+    _, avanza = evaluate.evaluar(
+        _nodo("register", node_id="R0-01"), "mi madre es Laura Pérez", ya_guardado, "+34600111222"
+    )
+
+    assert avanza is False
+
+
+def test_register_completo_sin_mensaje_envia_bienvenida_igualmente(llm):
+    """H1: en la primera pasada real el alta se completó y no se envió nada. El alumno
+    estuvo cinco minutos sin señal de que el curso hubiera empezado."""
+    llm.json = {
+        "student_name": "Ana",
+        "adult_name": "Laura Pérez",
+        "adult_email": "laura@example.com",
+        "adult_phone": "+34600222333",
+        "faltan": [],
+        "mensaje": "",  # el modelo no redactó nada
+    }
+    llm.borrador = "bienvenida a bordo, copiloto"
+
+    mensaje, avanza = evaluate.evaluar(
+        _nodo("register", node_id="R0-01"), "todos mis datos", ESTADO, "+34600111222"
+    )
+
+    assert avanza is True
+    assert mensaje == "[spoky] bienvenida a bordo, copiloto"
+
+
+def test_la_pregunta_literal_enviada_tiene_precedencia_sobre_la_del_catalogo(llm):
+    """H4: `CourseNode.question` guarda la acotación de guion, a menudo en imperativo
+    («Pregunta al humano si había escuchado sobre Python»), que el modelo lee como una
+    orden y vuelve a formular. `UserState.last_question` es lo que el alumno leyó."""
+    estado = UserState(
+        phone="+34600111222",
+        current_order=8,
+        last_question="¿Qué sabes tú sobre Python, copiloto?",
+    )
+    nodo = _nodo("open", node_id="E1-01-02", question="Pregunta al humano, si habia esuchado…")
+
+    evaluate.evaluar(nodo, "Es una serpiente", estado, "+34600111222")
+
+    instruccion = llm.instrucciones[-1]
+    assert "¿Qué sabes tú sobre Python, copiloto?" in instruccion
+    assert "Pregunta al humano" not in instruccion
+
+
+def test_sin_pregunta_literal_se_cae_al_catalogo(llm):
+    """El respaldo: el primer turno tras un deploy, o una pausa sin texto previo."""
+    estado = UserState(phone="+34600111222", current_order=8)
+    nodo = _nodo("open", node_id="E1-01-02", question="Pregunta al humano si conoce Python")
+
+    evaluate.evaluar(nodo, "Es una serpiente", estado, "+34600111222")
+
+    assert "Pregunta al humano si conoce Python" in llm.instrucciones[-1]
