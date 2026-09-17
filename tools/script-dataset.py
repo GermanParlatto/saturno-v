@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""
-generate_spoky_dataset.py — Generador de dataset sintético para el LoRA de Spoky (Waku-Code)
+"""Generador del dataset sintético con el que se entrenó el LoRA de Spoky (Waku-Code).
+
+EJECUCIÓN ÚNICA, conservada como documentación del proceso: produjo las 577
+conversaciones que, tras curación manual, quedaron en las 500 del fine-tuning de
+`GParlatto/spoky-qwen-merged-v2`. No forma parte del runtime ni del CI.
+
+Requiere el grupo opcional `tools` (`uv sync --group tools`) por la dependencia
+`anthropic`, que a propósito no entra en el bundle de Lambda.
 
 Pipeline:
   1. Construye la matriz de cobertura: conceptos del temario (L0-L3) x escenarios + transversales.

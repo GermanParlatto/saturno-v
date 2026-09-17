@@ -1,18 +1,17 @@
 [project]
 name = "kapso-whatsapp-bot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Waku Code: a WhatsApp-native Python tutor for kids, on AWS serverless"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 # Lo que se empaqueta en Lambda: src/requirements.txt sale de aquí vía
 # `make lock-requirements`, así que todo lo que se añada engorda el bundle.
 dependencies = [
     "aws-lambda-powertools>=3.7.0",
-    "aws-xray-sdk>=2.14.0",
     "httpx>=0.28.0",
     "langchain-aws>=1.6.3",
     "langgraph>=1.2.9",
-    "langgraph-checkpoint-aws>=1.2.0",
     "pydantic>=2.0",
 ]
 
@@ -31,10 +30,10 @@ local = [
     "python-dotenv>=1.2.2",
 ]
 # Solo para los scripts de tools/. Grupo aparte de `dev` a proposito: asi no lo
-# instala el CI y no puede colarse en src/requirements.txt (openpyxl en Lambda
-# seria un parser de hojas de calculo empaquetado en un bot de WhatsApp).
+# instala el CI y no puede colarse en src/requirements.txt (un SDK de generacion
+# de datasets empaquetado en un bot de WhatsApp no tendria sentido).
 tools = [
-    "openpyxl>=3.1",
+    "anthropic>=0.40",
 ]
 
 [tool.ruff]
@@ -58,8 +57,8 @@ select = [
 ignore = ["E203"]
 
 [tool.ruff.lint.per-file-ignores]
-# Script one-off de generación de dataset: prints, open() sin context manager
-# y bucles largos son aceptables aquí.
+# Scripts one-off (generación del dataset, sondas manuales): prints, open() sin
+# context manager y bucles largos son aceptables aquí.
 "tools/*" = ["SIM115", "E501"]
 
 [tool.pytest.ini_options]
