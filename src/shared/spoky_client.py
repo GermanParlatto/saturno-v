@@ -1,13 +1,12 @@
 """Cliente del endpoint de Spoky (HF Inference Endpoints, API compatible OpenAI).
 
 Sirve el modelo `GParlatto/spoky-qwen-merged-v2` con vLLM en /v1/chat/completions. A
-diferencia del nodo `llm` (que usa ChatBedrockConverse), esto es httpx directo:
+diferencia del modelo de contenido (que usa ChatBedrockConverse), esto es httpx directo:
 LangSmith no lo traza automáticamente, por eso `generar` va decorada con
 @traceable.
 
 La config se lee DENTRO de `generar`, no a nivel de módulo: así el cliente se
-puede testear con sólo `monkeypatch.setenv`, sin necesitar el entorno al
-importar (al contrario que `agents/nodes/llm.py`, que sí lee env al importar).
+puede testear con sólo `monkeypatch.setenv`, sin necesitar el entorno al importar.
 """
 
 import json

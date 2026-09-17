@@ -1,21 +1,20 @@
 """Voz de Spoky: reescribe un borrador técnico con la personalidad del personaje.
 
-Extraído de `agents/nodes/finalizer.py` para que el motor de curso lo reutilice sin
-duplicar la salvaguarda del código. El finalizador legacy sigue usando
-`codigo_preservado` desde aquí: una sola implementación de la guarda.
+Este módulo es dueño de la salvaguarda del código (`codigo_preservado`): una sola
+implementación de la guarda para todo el motor.
 
-División del trabajo (la misma del grafo legacy): un modelo responde de la CORRECCIÓN
-del contenido y este pone la VOZ. Si la voz falla, sale el borrador — el alumno recibe
-algo correcto aunque sin personaje. Nunca se rompe el envío por esto.
+División del trabajo: un modelo responde de la CORRECCIÓN del contenido y este pone la
+VOZ. Si la voz falla, sale el borrador — el alumno recibe algo correcto aunque sin
+personaje. Nunca se rompe el envío por esto.
 """
 
 import re
 
 from aws_lambda_powertools.metrics import MetricUnit
 
-from agents.prompts import REWRITE_INSTRUCTION, SPOKY_SYSTEM
 from shared import spoky_client
 from shared.observability import logger, metrics
+from shared.prompts import REWRITE_INSTRUCTION, SPOKY_SYSTEM
 
 MAX_TOKENS = 200
 TEMPERATURE = 0.6

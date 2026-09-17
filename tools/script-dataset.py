@@ -33,11 +33,11 @@ from dataclasses import dataclass
 # 1. SYSTEM PROMPT CORTO Y CONSTANTE (el arnés completo vive fuera del dataset)
 # ---------------------------------------------------------------------------
 
-# Se importa de src/agents/prompts.py (única fuente de verdad, usada también
-# por el nodo finalizador en producción) para que el dataset y el prompt
+# Se importa de src/shared/prompts.py (única fuente de verdad, usada también
+# por shared/voice.py en producción) para que el dataset y el prompt
 # desplegado nunca diverjan.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
-from agents.prompts import SPOKY_SYSTEM  # noqa: E402
+from shared.prompts import SPOKY_SYSTEM  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 2. CATÁLOGO DE CONCEPTOS (Documento 05 — temario) + LORE (Documentos 02/03)

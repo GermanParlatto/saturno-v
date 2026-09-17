@@ -1,8 +1,8 @@
 """Entrypoint del motor de curso: la única función que el worker necesita conocer.
 
-A diferencia de `agents.app.run_graph`, esto NO devuelve texto para que el llamador lo
-envíe: el grafo envía por Kapso a medida que recorre nodos (una invocación puede producir
-varios mensajes, o ninguno). El worker solo dispara y observa.
+NO devuelve texto para que el llamador lo envíe: el grafo envía por Kapso a medida que
+recorre nodos (una invocación puede producir varios mensajes, o ninguno). El worker solo
+dispara y observa.
 """
 
 import os
@@ -10,7 +10,7 @@ import os
 from .graph import build_course_graph
 from .state import CourseState
 
-# Se construye UNA VEZ por contenedor Lambda, igual que el grafo legacy.
+# Se construye UNA VEZ por contenedor Lambda: el ensamblado no depende del alumno.
 GRAPH = build_course_graph()
 
 

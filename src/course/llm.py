@@ -3,9 +3,8 @@
     EvaluatorModel (Bedrock)  -> responde de la CORRECCIÓN del contenido
     SpokyVoice (endpoint HF)  -> responde del TONO
 
-Es la misma división que ya usa el grafo legacy (`agents/nodes/llm.py` +
-`finalizer.py`), y existe por una razón concreta: el LoRA de Spoky es un 2B entrenado
-para hablar como el personaje, no para juzgar si un `print()` está bien escrito.
+La división existe por una razón concreta: el LoRA de Spoky es un 2B entrenado para
+hablar como el personaje, no para juzgar si un `print()` está bien escrito.
 
 `generar_borrador` es el único punto donde el motor llama a un modelo de contenido. Ese
 es el swap: cuando el fine-tuned esté listo, se cambia la implementación aquí y ni
