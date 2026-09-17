@@ -194,6 +194,16 @@ EVAL_INSTRUCTIONS = {
 }
 
 
+# El CSV guarda rutas relativas ("E1-01.png"), no URLs absolutas: así el bucket que
+# sirve los assets es configuración de despliegue y no queda grabado en el repo.
+# ASSET_BASE_URL se define en el workflow de seed; sin ella el nodo se siembra sin media.
+def _asset_url(ruta: str) -> str:
+    if not ruta or ruta.startswith(("http://", "https://")):
+        return ruta
+    base = os.environ.get("ASSET_BASE_URL", "").rstrip("/")
+    return f"{base}/{ruta}" if base else ""
+
+
 def _row_to_item(row: dict, anterior: dict[str, str]) -> tuple[dict, dict]:
     """Convierte una fila del CSV en el ítem DynamoDB + un resumen para el informe.
 
@@ -228,7 +238,7 @@ def _row_to_item(row: dict, anterior: dict[str, str]) -> tuple[dict, dict]:
         "description": description,
         "output": (row.get("Output") or "").strip(),
         "logic": (row.get("Logic") or "").strip(),
-        "file_url": (row.get("file_url") or "").strip(),
+        "file_url": _asset_url(file_url),
         "eval_type": eval_type,
         "media_kind": media_kind,
         "eval_instruction": eval_instruction,
