@@ -1,4 +1,4 @@
-"""Tests del grafo del curso (F3): recorrido, pausa, reanudación y guardas.
+"""Tests del grafo del curso: recorrido, pausa, reanudación y guardas.
 
 Se mockean las tres fronteras externas —catálogo, repositorio y envío por Kapso— para
 poder ejercitar el grafo entero sin AWS ni red. Lo que se verifica es el COMPORTAMIENTO

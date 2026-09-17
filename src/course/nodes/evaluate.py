@@ -32,7 +32,7 @@ def _instruccion(nodo: CourseNode) -> str:
     `eval_instruction` es el campo dedicado, pero hoy solo lo tiene R0-01: en los nodos
     `-02` la `description` YA está redactada como instrucción («Evalúa si el comando
     está bien escrito»), así que sirve de fallback sin pérdida real de calidad.
-    TODO: al cerrar F4, extraer las instrucciones a `EVAL_INSTRUCTIONS` del seeder.
+    TODO: extraer las instrucciones a un `EVAL_INSTRUCTIONS` explícito del seeder.
     """
     return nodo.eval_instruction or nodo.description
 
