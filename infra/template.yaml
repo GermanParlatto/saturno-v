@@ -168,7 +168,7 @@ Resources:
           SPOKY_ENDPOINT_URL: !Ref SpokyEndpointUrl
           SPOKY_API_TOKEN: !Ref SpokyApiToken
           # Motor de curso: course/catalog.py y course/repository.py leen estas tres.
-          # Sin ellas el worker revienta con KeyError en cuanto se cablee run_course().
+          # Sin ellas el worker revienta con KeyError en la primera invocación.
           CATALOG_TABLE: !Ref CourseCatalogTable
           COURSE_STATE_TABLE: !Ref CourseStateTable
           COURSE_ID: !Ref CourseId

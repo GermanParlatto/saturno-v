@@ -1,4 +1,4 @@
-"""Tests de la evaluación (F4): las 4 ramas de `eval_type` y la escalada de pistas.
+"""Tests de la evaluación: las 4 ramas de `eval_type` y la escalada de pistas.
 
 El LLM va mockeado: lo que se verifica no es la calidad del texto, sino las DECISIONES
 que se toman a su alrededor — cuándo avanza el curso, cuándo se cuenta un intento, y la

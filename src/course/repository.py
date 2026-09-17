@@ -150,7 +150,7 @@ def update_profile(phone: str, **campos) -> None:
     segunda respuesta completa lo que faltaba, sin pisar lo ya guardado con `None`.
 
     Estos son datos de contacto de un adulto responsable de un menor. La tabla tiene
-    SSE activado y el worker no loguea el texto de entrada (ver F0).
+    SSE activado y el worker no loguea el texto de entrada.
     """
     presentes = {k: v for k, v in campos.items() if v not in (None, "")}
     if not presentes:

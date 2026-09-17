@@ -3,8 +3,7 @@
 Ojo: esto es la PRIMERA de las dos fases del alta. Aquí solo se crea la fila con el
 perfil vacío. Los datos (nombre del alumno, y nombre/correo/teléfono del adulto) llegan
 un turno después, en la respuesta a `R0-01`, cuando el alumno ya consta como
-`registrado` y por tanto NO vuelve a pasar por este nodo. Ver el TODO de F3 en
-claude/PLAN-course-engine.md.
+`registrado` y por tanto NO vuelve a pasar por este nodo.
 """
 
 from shared.observability import logger
