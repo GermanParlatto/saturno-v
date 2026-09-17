@@ -1,9 +1,9 @@
 """Prueba manual de `send_media` contra un WhatsApp real. NO entra en CI ni en Lambda.
 
-Responde la única pregunta de F2 que no se puede contestar leyendo código:
-**¿Kapso acepta una URL externa en `link`, o exige subir el fichero antes y usar un
-media ID?** Si estos envíos llegan, F3 puede construirse sobre `send_media` tal cual;
-si Kapso los rechaza, hay que añadir un paso de upload ANTES de escribir el runner.
+Respondió la pregunta que no se podía contestar leyendo código: **¿Kapso acepta una URL
+externa en `link`, o exige subir el fichero antes y usar un media ID?** La respuesta fue
+que sí acepta URL externa, y sobre eso se construyó `course/nodes/runner.py`. Se conserva
+como sonda para revalidarlo si Kapso cambia de comportamiento.
 
 Uso:
     KAPSO_API_KEY=... uv run python tools/send-media-probe.py \
