@@ -22,7 +22,6 @@ langchain-core==1.5.0
 langchain-protocol==0.0.18
 langgraph==1.2.9
 langgraph-checkpoint==4.1.1
-langgraph-checkpoint-aws==1.2.0
 langgraph-prebuilt==1.1.0
 langgraph-sdk==0.4.2
 langsmith==0.10.10
@@ -45,6 +44,6 @@ typing-inspection==0.4.2
 urllib3==2.7.0
 uuid-utils==0.17.0
 websockets==15.0.1
-wrapt==2.2.2
+wrapt==2.4.1
 xxhash==3.8.1
 zstandard==0.25.0

@@ -1,6 +1,6 @@
 """Tests de `send_media`: envío de media por URL externa a través de Kapso.
 
-`send_text` no se toca en F2 y tiene su propio contrato; aquí solo se cubre la función
+`send_text` tiene su propio contrato; aquí solo se cubre la función
 nueva. Lo que se verifica es la FORMA del payload de Meta, porque un error ahí no se
 manifiesta como excepción sino como un mensaje que nunca llega al alumno.
 """

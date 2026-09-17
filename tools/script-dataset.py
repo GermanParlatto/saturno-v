@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""
-generate_spoky_dataset.py — Generador de dataset sintético para el LoRA de Spoky (Waku-Code)
+"""Generador del dataset sintético con el que se entrenó el LoRA de Spoky (Waku-Code).
+
+EJECUCIÓN ÚNICA, conservada como documentación del proceso: produjo las 577
+conversaciones que, tras curación manual, quedaron en las 500 del fine-tuning de
+`GParlatto/spoky-qwen-merged-v2`. No forma parte del runtime ni del CI.
+
+Requiere el grupo opcional `tools` (`uv sync --group tools`) por la dependencia
+`anthropic`, que a propósito no entra en el bundle de Lambda.
 
 Pipeline:
   1. Construye la matriz de cobertura: conceptos del temario (L0-L3) x escenarios + transversales.
@@ -33,11 +39,11 @@ from dataclasses import dataclass
 # 1. SYSTEM PROMPT CORTO Y CONSTANTE (el arnés completo vive fuera del dataset)
 # ---------------------------------------------------------------------------
 
-# Se importa de src/agents/prompts.py (única fuente de verdad, usada también
-# por el nodo finalizador en producción) para que el dataset y el prompt
+# Se importa de src/shared/prompts.py (única fuente de verdad, usada también
+# por shared/voice.py en producción) para que el dataset y el prompt
 # desplegado nunca diverjan.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
-from agents.prompts import SPOKY_SYSTEM  # noqa: E402
+from shared.prompts import SPOKY_SYSTEM  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 2. CATÁLOGO DE CONCEPTOS (Documento 05 — temario) + LORE (Documentos 02/03)

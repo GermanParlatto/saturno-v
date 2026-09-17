@@ -25,7 +25,7 @@ from pydantic import BaseModel
 #              demás, pero lo que llega es un formulario en texto libre (nombre del
 #              alumno + nombre/correo/teléfono del adulto), no un intento de ejercicio.
 #              Sin esta rama, el primer mensaje de TODO alumno nuevo cae en un `else`
-#              sin destino. Ver el TODO de F3 en claude/PLAN-course-engine.md.
+#              sin destino.
 EvalType = Literal["open", "strict", "ack", "register"]
 
 

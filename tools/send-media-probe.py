@@ -1,9 +1,9 @@
 """Prueba manual de `send_media` contra un WhatsApp real. NO entra en CI ni en Lambda.
 
-Responde la única pregunta de F2 que no se puede contestar leyendo código:
-**¿Kapso acepta una URL externa en `link`, o exige subir el fichero antes y usar un
-media ID?** Si estos envíos llegan, F3 puede construirse sobre `send_media` tal cual;
-si Kapso los rechaza, hay que añadir un paso de upload ANTES de escribir el runner.
+Respondió la pregunta que no se podía contestar leyendo código: **¿Kapso acepta una URL
+externa en `link`, o exige subir el fichero antes y usar un media ID?** La respuesta fue
+que sí acepta URL externa, y sobre eso se construyó `course/nodes/runner.py`. Se conserva
+como sonda para revalidarlo si Kapso cambia de comportamiento.
 
 Uso:
     KAPSO_API_KEY=... uv run python tools/send-media-probe.py \
@@ -25,7 +25,10 @@ import httpx  # noqa: E402
 
 from shared.kapso_client import send_media  # noqa: E402
 
-BASE = "https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets"
+# Mismo contrato que el seeder: el bucket viene del entorno, no del código.
+BASE = os.environ.get("ASSET_BASE_URL", "").rstrip("/")
+if not BASE:
+    sys.exit("Define ASSET_BASE_URL con la base del bucket de assets.")
 
 # Un asset accesible por cada media_kind. El cheatsheet (E1-07) da 403 hoy, así que para
 # `document` se reutiliza un PNG que sí responde: lo que se prueba es el tipo de mensaje,

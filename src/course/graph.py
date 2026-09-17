@@ -8,9 +8,9 @@
                                                └───────────────────┘
                                                 (route_sequence)   → END
 
-**Sin checkpointer**, al contrario que `agents/graph.py`: `CourseStateTable` ya es la
-fuente de verdad de la posición y añadir `DynamoDBSaver` encima crearía dos stores que
-pueden divergir. El estado se carga en `identify_user` y se escribe en `advance`.
+**Sin checkpointer**, a propósito: `CourseStateTable` ya es la fuente de verdad de la
+posición y añadir `DynamoDBSaver` encima crearía dos stores que pueden divergir. El
+estado se carga en `identify_user` y se escribe en `advance`.
 """
 
 from langgraph.graph import END, START, StateGraph

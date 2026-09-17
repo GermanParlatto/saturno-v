@@ -111,6 +111,8 @@ jobs:
       # neutraliza con `|| true` y se decide mirando el código de salida.
       - name: ¿Hay migración de catálogo pendiente?
         id: check
+        env:
+          ASSET_BASE_URL: ${{ secrets.ASSET_BASE_URL }}
         run: |
           set +e
           OUT=$(uv run python tools/seed-course.py \
@@ -128,6 +130,10 @@ jobs:
       # Se llama SIEMPRE: el propio seeder decide si escribe. Un paso, sin `if:`,
       # sin que el YAML duplique la lógica de versiones.
       - name: Sembrar / migrar catálogo
+        # Base del bucket de assets: el CSV guarda rutas relativas, el seeder las
+        # resuelve contra esto. Sin el secreto, los nodos se siembran sin media.
+        env:
+          ASSET_BASE_URL: ${{ secrets.ASSET_BASE_URL }}
         run: |
           uv run python tools/seed-course.py \
             --table "${{ steps.table.outputs.name }}" \

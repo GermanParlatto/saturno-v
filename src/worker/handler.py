@@ -5,10 +5,9 @@ mensajes que fallaron, no el lote entero (requiere FunctionResponseTypes:
 ReportBatchItemFailures en la plantilla). Sin esto, con BatchSize=10 un solo
 fallo reenviaría nueve respuestas duplicadas.
 
-El worker ya NO envía la respuesta: `run_course` envía por Kapso a medida que recorre
+El worker NO envía la respuesta: `run_course` envía por Kapso a medida que recorre
 nodos, porque una invocación puede producir varios mensajes (cadena de `pauses=false`)
-o ninguno (el alumno responde a un nodo que solo evalúa). `agents.app.run_graph`
-—START→llm→END— deja de invocarse; el código sigue en el repo sin ruta que lo alcance.
+o ninguno (el alumno responde a un nodo que solo evalúa).
 
 Dos clases de mensaje llegan por la cola:
   * webhooks reales del alumno (`WebhookIn`), reenviados por el receiver;

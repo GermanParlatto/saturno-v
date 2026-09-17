@@ -267,3 +267,23 @@ def test_la_purga_no_borra_nada_si_la_secuencia_no_se_acorto(monkeypatch):
 
     assert seed.purge_stale_flow("cualquiera", "waku-l0", length=69) == 0
     assert len(tabla.items) == 69
+
+
+def test_asset_url_resuelve_ruta_relativa(monkeypatch):
+    monkeypatch.setenv("ASSET_BASE_URL", "https://cdn.example.com/bucket:waku/assets/")
+
+    assert seed._asset_url("E1-01.png") == "https://cdn.example.com/bucket:waku/assets/E1-01.png"
+
+
+def test_asset_url_respeta_url_absoluta(monkeypatch):
+    monkeypatch.setenv("ASSET_BASE_URL", "https://cdn.example.com/assets")
+
+    assert seed._asset_url("https://otro.host/x.png") == "https://otro.host/x.png"
+
+
+def test_asset_url_vacia_sin_base(monkeypatch):
+    """Sin ASSET_BASE_URL el nodo se siembra sin media, en vez de con una URL rota."""
+    monkeypatch.delenv("ASSET_BASE_URL", raising=False)
+
+    assert seed._asset_url("E1-01.png") == ""
+    assert seed._asset_url("") == ""
