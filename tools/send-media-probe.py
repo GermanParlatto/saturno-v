@@ -25,7 +25,10 @@ import httpx  # noqa: E402
 
 from shared.kapso_client import send_media  # noqa: E402
 
-BASE = "https://usc1.contabostorage.com/efbb2fde41344653916ec481499f7b4b:waku-code/assets"
+# Mismo contrato que el seeder: el bucket viene del entorno, no del código.
+BASE = os.environ.get("ASSET_BASE_URL", "").rstrip("/")
+if not BASE:
+    sys.exit("Define ASSET_BASE_URL con la base del bucket de assets.")
 
 # Un asset accesible por cada media_kind. El cheatsheet (E1-07) da 403 hoy, así que para
 # `document` se reutiliza un PNG que sí responde: lo que se prueba es el tipo de mensaje,
