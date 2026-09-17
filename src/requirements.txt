@@ -4,6 +4,7 @@
 annotated-types==0.7.0
 anyio==4.14.2
 aws-lambda-powertools==3.31.1
+aws-xray-sdk==2.15.0
 boto3==1.43.53
 botocore==1.43.53
 certifi==2026.6.17
@@ -43,5 +44,6 @@ typing-inspection==0.4.2
 urllib3==2.7.0
 uuid-utils==0.17.0
 websockets==15.0.1
+wrapt==2.4.1
 xxhash==3.8.1
 zstandard==0.25.0

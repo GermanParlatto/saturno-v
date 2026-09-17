@@ -9,6 +9,10 @@ requires-python = ">=3.12"
 # `make lock-requirements`, así que todo lo que se añada engorda el bundle.
 dependencies = [
     "aws-lambda-powertools>=3.7.0",
+    # NO es transitiva de Powertools: es un extra opcional suyo. `Tracer()` la importa
+    # al construirse (observability.py la instancia a nivel de módulo), así que sin
+    # ella todo import de shared/ revienta con ModuleNotFoundError.
+    "aws-xray-sdk>=2.14.0",
     "httpx>=0.28.0",
     "langchain-aws>=1.6.3",
     "langgraph>=1.2.9",
