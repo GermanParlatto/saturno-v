@@ -1,6 +1,6 @@
 # WAKU-CODE — Alcance del Script Generador de Dataset
 ## Proyecto Waku-Code · Documento 6
-### `generate_spoky_dataset.py` — Qué resuelve y qué NO resuelve
+### `tools/script-dataset.py` — Qué resuelve y qué NO resuelve
 
 ---
 
