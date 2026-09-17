@@ -15,29 +15,21 @@ Variables de entorno de las dos Lambdas, de dónde salen y qué pasa si falta ca
 | Variable | Obligatoria | Default | Origen | Si falta |
 |---|---|---|---|---|
 | `KAPSO_API_KEY` | sí | — | Parámetro SAM `KapsoApiKey` ← secret de GitHub | `RuntimeError` al enviar por Kapso (guardado en `kapso_client.py`). |
-| `MODEL_ID` | sí | `eu.amazon.nova-2-lite-v1:0` | Parámetro SAM `ModelId` | `KeyError` al importar `agents/nodes/llm.py`. |
-| `CHECKPOINT_TABLE` | sí | — | `!Ref CheckpointTable` (interno) | `KeyError` al construir el checkpointer. |
+| `MODEL_ID` | sí | `eu.amazon.nova-2-lite-v1:0` | Parámetro SAM `ModelId` | `KeyError` al importar `course/llm.py`. |
 | `LANGSMITH_TRACING` | no | `"true"` (fijo en el template) | — | Sin trazas de LangSmith. |
 | `LANGSMITH_API_KEY` | sí | — | Parámetro SAM `LangsmithApiKey` ← secret de GitHub | El deploy rechaza (`MinLength: 1`). |
 | `LANGSMITH_PROJECT` | no | `spoky-bot` (fijo) | — | — |
 | `LANGSMITH_ENDPOINT` | no | `https://eu.api.smith.langchain.com` (fijo) | — | — |
-| `SPOKY_ENDPOINT_URL` | sí | — | Parámetro SAM `SpokyEndpointUrl` ← secret de GitHub | El deploy rechaza (`MinLength: 1`); en runtime, `SpokyConfigError` y el finalizador cae al borrador del tutor (nunca rompe el pipeline). |
+| `SPOKY_ENDPOINT_URL` | sí | — | Parámetro SAM `SpokyEndpointUrl` ← secret de GitHub | El deploy rechaza (`MinLength: 1`); en runtime, `SpokyConfigError` y la voz cae al borrador (nunca rompe el envío). |
 | `SPOKY_API_TOKEN` | sí | — | Parámetro SAM `SpokyApiToken` (`NoEcho`) ← secret de GitHub | Igual que arriba: `SpokyConfigError` + fallback. |
-| `SPOKY_MODEL_NAME` | no | `GParlatto/spoky-qwen-merged-v2` | — | Se usa el default. |
-| `SPOKY_TIMEOUT_SECONDS` | no | `25` | Fijo en el template (`WorkerFn`) | Se usa el default. |
-| `DB_CLUSTER_ARN` | sí | — | `!GetAtt DBCluster.DBClusterArn` (interno) | `KeyError` al primer acceso a la BD. |
-| `DB_SECRET_ARN` | sí | — | `!GetAtt DBCluster.MasterUserSecret.SecretArn` (interno) | `KeyError` al primer acceso a la BD. |
-| `DB_NAME` | sí | `waku` | Parámetro SAM `DbName` (no es secreto) | `KeyError` al primer acceso a la BD. |
-
-## Migrador (`MigrationFn`)
-
-Se invoca a mano (`make migrate`), no tiene `Events:`. Ver [09 · Base de datos](09-Base-de-datos.md).
-
-| Variable | Obligatoria | Default | Origen | Si falta |
-|---|---|---|---|---|
-| `DB_CLUSTER_ARN` | sí | — | `!GetAtt DBCluster.DBClusterArn` (interno) | `KeyError` al aplicar migraciones. |
-| `DB_SECRET_ARN` | sí | — | `!GetAtt DBCluster.MasterUserSecret.SecretArn` (interno) | `KeyError` al aplicar migraciones. |
-| `DB_NAME` | sí | `waku` | Parámetro SAM `DbName` | `KeyError` al aplicar migraciones. |
+| `CATALOG_TABLE` | sí | — | `!Ref CourseCatalogTable` (interno) | `KeyError` en la primera invocación (`course/catalog.py`). |
+| `COURSE_STATE_TABLE` | sí | — | `!Ref CourseStateTable` (interno) | `KeyError` en la primera invocación (`course/repository.py`). |
+| `COURSE_ID` | sí | `waku-l0` | Parámetro SAM `CourseId` (no es secreto) | Se busca la secuencia de otro curso y el alumno no avanza. |
+| `QUEUE_URL` | sí | — | `!Ref IncomingQueue` (interno) | `KeyError` al re-encolar una continuación (`course/continuation.py`). |
+| `INTER_MESSAGE_DELAY_MS` | no | `1500` (fijo en el template) | — | Los nodos encadenados salen sin pausa entre ellos. |
+| `MAX_NODES_PER_INVOCATION` | no | `10` (fijo en el template) | — | Una cadena larga puede agotar el `Timeout: 120`. |
+| `SPOKY_MODEL_NAME` | no | `GParlatto/spoky-qwen-merged-v2` | Default en código (`shared/spoky_client.py`); no se define en el template | Se usa el default. |
+| `SPOKY_TIMEOUT_SECONDS` | no | `25` | Default en código (`shared/spoky_client.py`); no se define en el template | Se usa el default. |
 
 ## Globales (ambas Lambdas)
 
@@ -45,22 +37,22 @@ Se invoca a mano (`make migrate`), no tiene `Events:`. Ver [09 · Base de datos]
 |---|---|---|
 | `POWERTOOLS_LOG_LEVEL` | `INFO` | Sin esto Powertools filtra a WARNING y los `logger.info` no aparecen. |
 | `POWERTOOLS_SERVICE_NAME` | `kapso-bot` | Nombre homogéneo en logs y trazas X-Ray. |
-| `POWERTOOLS_METRICS_NAMESPACE` | `kapso-bot` | Namespace de CloudWatch para las métricas EMF (`FinalizerOk`, `FinalizerFallback`, etc.). |
+| `POWERTOOLS_METRICS_NAMESPACE` | `kapso-bot` | Namespace de CloudWatch para las métricas EMF (`VozOk`, `VozFallback`, etc.). |
 
 `AWS_REGION` la inyecta Lambda automáticamente; el código usa `os.environ.get("AWS_REGION", "eu-west-1")` como fallback para ejecución local.
 
-## Métricas del finalizador
+## Métricas de la voz de Spoky
 
 Emitidas con `aws_lambda_powertools.Metrics` bajo el namespace `kapso-bot`:
 
 | Métrica | Cuándo se emite |
 |---|---|
-| `FinalizerOk` | La reescritura de Spoky se aplicó con éxito. |
-| `FinalizerOmitido` | No había borrador válido; no se llamó al endpoint. |
-| `FinalizerFallback` | Cualquier fallo del endpoint (config, red, timeout, HTTP, estructura); se envió el borrador del tutor. |
-| `FinalizerCodigoAlterado` | La reescritura perdió algún fragmento de código del borrador; se descartó y se envió el borrador. |
+| `VozOk` | La reescritura de Spoky se aplicó con éxito. |
+| `VozOmitida` | No había borrador válido; no se llamó al endpoint. |
+| `VozFallback` | Cualquier fallo del endpoint (config, red, timeout, HTTP, estructura); se envió el borrador. |
+| `VozCodigoAlterado` | La reescritura perdió algún fragmento de código del borrador; se descartó y se envió el borrador. |
 
-Si `FinalizerFallback` o `FinalizerCodigoAlterado` suben mucho, revisar primero si el endpoint está frío (ver abajo) antes de tocar el prompt.
+Si `VozFallback` o `VozCodigoAlterado` suben mucho, revisar primero si el endpoint está frío (ver abajo) antes de tocar el prompt.
 
 ## Presupuesto de timeout y arranque en frío
 
@@ -87,10 +79,5 @@ Un secreto nuevo requiere editar tres sitios coordinados, o el deploy falla o de
 
 Y no olvidar dar de alta el secret en el entorno `production` de GitHub (Settings → Environments → production → Secrets).
 
-### Cuándo NO aplica este checklist
-
-Las credenciales de la base de datos **no** siguen los pasos de arriba, y añadirlas al bucle de `deploy.yml` haría fallar el deploy por un secret de GitHub que no existe.
-
-`DB_CLUSTER_ARN`, `DB_SECRET_ARN` y `DB_NAME` no son secretos de GitHub: los dos primeros salen de un `!GetAtt` sobre el cluster dentro del propio template, y `DB_NAME` es un parámetro sin `NoEcho`. La contraseña de la base de datos **nunca existe como secret**: la crea y la rota AWS (`ManageMasterUserPassword: true`), y las Lambdas solo referencian el ARN del secreto gestionado, que es estable frente a la rotación.
-
-Regla general: si el valor sale de un `!Ref`/`!GetAtt` a otro recurso del stack, es interno y solo requiere el paso 2.
+> Regla general: si el valor sale de un `!Ref`/`!GetAtt` a otro recurso del stack, es
+> interno, no necesita un secret de GitHub y solo requiere el paso 2.
