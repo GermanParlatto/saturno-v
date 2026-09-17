@@ -255,7 +255,7 @@ Resources:
         SSEEnabled: true
 
   # Estado por alumno: PK = USER#<tel>, SK = STATE.  SIN TTL a propósito: el progreso
-  # debe durar meses (el TTL de 7 días de agents/memory.py lo borraría al día 8).
+  # debe durar meses; un TTL corto heredado de una caché de conversación lo borraría.
   # SSE on: guarda datos de contacto de tutores de menores.
   CourseStateTable:
     Type: AWS::DynamoDB::Table

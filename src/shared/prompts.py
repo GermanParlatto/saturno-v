@@ -1,8 +1,9 @@
-"""Prompts del personaje Spoky, compartidos entre el grafo y el dataset del LoRA.
+"""Prompts del personaje Spoky, compartidos entre la voz en producción y el dataset del LoRA.
 
-`SPOKY_SYSTEM` es BYTE-IDÉNTICO al system prompt con el que se entrenó el LoRA
-(ver tools/script-dataset.py, que lo importa de aquí). Editarlo sin reentrenar
-mueve al modelo fuera de la distribución de su fine-tuning.
+`SPOKY_SYSTEM` es BYTE-IDÉNTICO al system prompt con el que se entrenó el LoRA. Lo
+importan `shared/voice.py` (lo que se envía al alumno) y `tools/script-dataset.py` (lo
+que se usó para entrenar): una sola fuente de verdad, para que no puedan divergir.
+Editarlo sin reentrenar mueve al modelo fuera de la distribución de su fine-tuning.
 """
 
 SPOKY_SYSTEM = (
